@@ -3,7 +3,7 @@
  * Rutas relativas para repo en subdirectorio /Almacen/
  */
 
-var CACHE_NAME = 'jlb-almacen-v2';
+var CACHE_NAME = 'jlb-almacen-v3';
 
 var ASSETS_CACHE = [
   './',
