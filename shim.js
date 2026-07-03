@@ -11,7 +11,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // 1. CONFIGURACIÓN — EDITA SOLO ESTA LÍNEA
 // ═══════════════════════════════════════════════════════════════════════
-var GAS_URL = 'https://script.google.com/macros/s/TU_DEPLOYMENT_ID/exec';
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbwukgOIHmHgTsQx96QineroFHlNeFA6GWjR8tb8INFK1wCwMwLy2kgHrKOJpFKEXpLD/exec';
 //                                                   ↑ pega tu ID aquí
 
 
