@@ -90,7 +90,6 @@ window.solicitarPermisoNotificaciones = function() {
         new Notification('JLB Almacén', {
           body : 'Notificaciones activadas correctamente',
           icon : 'icon-192.png',
-          badge: 'icon-192.png',
           tag  : 'bienvenida'
         });
       }
