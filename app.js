@@ -223,82 +223,181 @@
     }
 
     function sincronizarGlobalSilent() {
-       if(isSyncing) return; isSyncing = true;
-       google.script.run.withFailureHandler(() => { isSyncing = false; }).withSuccessHandler(async (d) => {
-          isSyncing = false;
-          if(d) { 
-             let latestServerReqId = (d.requerimientos && d.requerimientos.length > 0) ? d.requerimientos[0].id : null;
-             if (lastReqId !== null && latestServerReqId !== null && lastReqId !== latestServerReqId) {
-                 let existedBefore = DATA.requerimientos ? DATA.requerimientos.some(r => String(r.id) === String(latestServerReqId)) : false;
-                 if(!existedBefore) {
-                     let req = d.requerimientos[0];
-                     if (req.cliente !== "Guardando...") { agregarAlerta('🛒', 'Nuevo Pedido', 'De: ' + req.cliente + ' · ' + req.prioridad, 'pedido'); notificar('🛒 Nuevo Pedido', 'De: ' + req.cliente + ' · ' + req.prioridad, true); showToast("NUEVO PEDIDO RECIBIDO", `De: ${req.cliente}<br>Prioridad: <b>${req.prioridad}</b>`, () => { let btnPc = document.getElementById('btnTabReqPC'); let btnMob = document.getElementById('btnNavReqMobile'); go('tab-req', window.innerWidth > 768 ? btnPc : btnMob); }); }
-                 }
-             }
-             if(latestServerReqId) lastReqId = latestServerReqId;
-             DATA = d; precalcularPrestamos(); await idb.set('jlb_data_cache', JSON.stringify(d));
+    if (isSyncing) return;
+    isSyncing = true;
 
-             // ── Notificación proactiva de stock bajo ──────────────────
-             // ── Alertas proactivas de stock bajo ──────────────────────
-             var _stockBajos  = (d.insumosData || []).filter(function(i) {
-               return !i.eliminado && parseFloat(i.stock) <= parseFloat(i.min) && parseFloat(i.min) > 0;
-             });
-             var _nombresLow  = _stockBajos.map(function(i) { return i.nombre; });
-             var _nuevosLow   = _nombresLow.filter(function(n) { return _prevLowStock.indexOf(n) === -1; });
-             if (_nuevosLow.length > 0) {
-               var _msgLow = _nuevosLow.slice(0, 3).join(', ') + (_nuevosLow.length > 3 ? ' y ' + (_nuevosLow.length - 3) + ' más' : '');
-               agregarAlerta('⚠️', 'Stock Bajo', _nuevosLow.length + ' insumo(s): ' + _msgLow, 'stock');
-               notificar('⚠️ Stock Bajo', _msgLow);
-             }
-             _prevLowStock = _nombresLow;
-             _renderNotifPanel();
-             // ─────────────────────────────────────────────────────────
-               return !i.eliminado && parseFloat(i.stock) <= parseFloat(i.min) && parseFloat(i.min) > 0;
-             });
-             var _nombresLow = _stockBajos.map(function(i) { return i.nombre; });
-             var _prevLow    = window._prevLowStock || [];
-             var _nuevosLow  = _nombresLow.filter(function(n) { return _prevLow.indexOf(n) === -1; });
-             if (_nuevosLow.length > 0) {
-               var _msg = _nuevosLow.slice(0, 3).join(', ') + (_nuevosLow.length > 3 ? ' y ' + (_nuevosLow.length - 3) + ' más' : '');
-               notificar('⚠️ Stock Bajo', _nuevosLow.length + ' insumo(s): ' + _msg);
-             }
-             window._prevLowStock = _nombresLow;
-             // ─────────────────────────────────────────────────────────
-             
-             if(isUserBusy()) return;
+    google.script.run
+        .withFailureHandler(() => {
+            isSyncing = false;
+        })
+        .withSuccessHandler(async (d) => {
+            isSyncing = false;
 
-             loadNames(); checkStockRegen(); llenarDatalistRequerimientos();
-             if(DATA.proyectos && DATA.proyectos.length > 0) document.getElementById('datalistProyectos').innerHTML = DATA.proyectos.map(p => `<option value="${san(p)}">`).join('');
-             
-             fill('mantEquipo', DATA.equipos);
-             fill('responsableSelect', DATA.responsables);
-             fill('mantResp', DATA.responsables);
-             fill('custTecnico', DATA.responsables);   // ← NUEVA
-             fill('admInsUnd', DATA.unidadesCatalogo);
-             fill('editUnidad', DATA.unidadesCatalogo);
-             fill('mUnidad', DATA.unidadesCatalogo);
+            if (d) {
 
-             if(document.getElementById('tab-stock').classList.contains('active')) { 
-                 filtrarEquipos(); 
-                 filtrarStock(); 
-             }
-             if(document.getElementById('tab-req').classList.contains('active')) { 
-                 filtrarPedidos(); 
-             }
-             if(document.getElementById('tab-prov').classList.contains('active')) { 
-                 filtrarProv(); 
-             }
-             if(document.getElementById('tab-reg').classList.contains('active')) { renderHistorial(DATA.movimientos || []); }
-            if(document.getElementById('tab-regen').classList.contains('active')) {
-    renderHistRegen(DATA.regeneracion || []);
-    renderStockContenedores();
-    renderProcesosAbiertos();
+                let latestServerReqId =
+                    (d.requerimientos && d.requerimientos.length > 0)
+                        ? d.requerimientos[0].id
+                        : null;
+
+                if (
+                    lastReqId !== null &&
+                    latestServerReqId !== null &&
+                    lastReqId !== latestServerReqId
+                ) {
+                    let existedBefore = DATA.requerimientos
+                        ? DATA.requerimientos.some(r => String(r.id) === String(latestServerReqId))
+                        : false;
+
+                    if (!existedBefore) {
+                        let req = d.requerimientos[0];
+
+                        if (req.cliente !== "Guardando...") {
+                            agregarAlerta(
+                                '🛒',
+                                'Nuevo Pedido',
+                                'De: ' + req.cliente + ' · ' + req.prioridad,
+                                'pedido'
+                            );
+
+                            notificar(
+                                '🛒 Nuevo Pedido',
+                                'De: ' + req.cliente + ' · ' + req.prioridad,
+                                true
+                            );
+
+                            showToast(
+                                "NUEVO PEDIDO RECIBIDO",
+                                `De: ${req.cliente}<br>Prioridad: <b>${req.prioridad}</b>`,
+                                () => {
+                                    let btnPc = document.getElementById('btnTabReqPC');
+                                    let btnMob = document.getElementById('btnNavReqMobile');
+
+                                    go(
+                                        'tab-req',
+                                        window.innerWidth > 768 ? btnPc : btnMob
+                                    );
+                                }
+                            );
+                        }
+                    }
+                }
+
+                if (latestServerReqId) {
+                    lastReqId = latestServerReqId;
+                }
+
+                DATA = d;
+
+                precalcularPrestamos();
+
+                await idb.set(
+                    'jlb_data_cache',
+                    JSON.stringify(d)
+                );
+
+                // ───────── Alertas de stock bajo ─────────
+
+                var _stockBajos = (d.insumosData || []).filter(function (i) {
+                    return (
+                        !i.eliminado &&
+                        parseFloat(i.stock) <= parseFloat(i.min) &&
+                        parseFloat(i.min) > 0
+                    );
+                });
+
+                var _nombresLow = _stockBajos.map(function (i) {
+                    return i.nombre;
+                });
+
+                var _nuevosLow = _nombresLow.filter(function (n) {
+                    return _prevLowStock.indexOf(n) === -1;
+                });
+
+                if (_nuevosLow.length > 0) {
+
+                    var _msgLow =
+                        _nuevosLow.slice(0, 3).join(', ') +
+                        (_nuevosLow.length > 3
+                            ? ' y ' + (_nuevosLow.length - 3) + ' más'
+                            : '');
+
+                    agregarAlerta(
+                        '⚠️',
+                        'Stock Bajo',
+                        _nuevosLow.length + ' insumo(s): ' + _msgLow,
+                        'stock'
+                    );
+
+                    notificar(
+                        '⚠️ Stock Bajo',
+                        _msgLow
+                    );
+                }
+
+                _prevLowStock = _nombresLow;
+
+                if (typeof _renderNotifPanel === "function") {
+                    _renderNotifPanel();
+                }
+
+                // ───────────────────────────────────────
+
+                if (isUserBusy()) return;
+
+                loadNames();
+                checkStockRegen();
+                llenarDatalistRequerimientos();
+
+                if (DATA.proyectos && DATA.proyectos.length > 0) {
+                    document.getElementById('datalistProyectos').innerHTML =
+                        DATA.proyectos
+                            .map(p => `<option value="${san(p)}">`)
+                            .join('');
+                }
+
+                fill('mantEquipo', DATA.equipos);
+                fill('responsableSelect', DATA.responsables);
+                fill('mantResp', DATA.responsables);
+                fill('custTecnico', DATA.responsables);
+                fill('admInsUnd', DATA.unidadesCatalogo);
+                fill('editUnidad', DATA.unidadesCatalogo);
+                fill('mUnidad', DATA.unidadesCatalogo);
+
+                if (document.getElementById('tab-stock').classList.contains('active')) {
+                    filtrarEquipos();
+                    filtrarStock();
+                }
+
+                if (document.getElementById('tab-req').classList.contains('active')) {
+                    filtrarPedidos();
+                }
+
+                if (document.getElementById('tab-prov').classList.contains('active')) {
+                    filtrarProv();
+                }
+
+                if (document.getElementById('tab-reg').classList.contains('active')) {
+                    renderHistorial(DATA.movimientos || []);
+                }
+
+                if (document.getElementById('tab-regen').classList.contains('active')) {
+                    renderHistRegen(DATA.regeneracion || []);
+                    renderStockContenedores();
+                    renderProcesosAbiertos();
+                }
+
+                if (document.getElementById('tab-mant').classList.contains('active')) {
+                    renderMant(DATA.mantenimientos || []);
+                }
+
+                if (document.getElementById('tab-adm').classList.contains('active')) {
+                    cargarBitacoraUI();
+                }
+            }
+        })
+        .cargarOpciones();
 }
-             if(document.getElementById('tab-mant').classList.contains('active')) { renderMant(DATA.mantenimientos || []); }
-             if(document.getElementById('tab-adm').classList.contains('active')) { cargarBitacoraUI(); }
-          }
-       }).cargarOpciones();
-    }
 
     function cargarBitacoraUI() {
         if(currentRole !== "Admin") return;
