@@ -89,7 +89,8 @@ window.solicitarPermisoNotificaciones = function() {
         // Notificación de bienvenida para confirmar que funciona
         new Notification('JLB Almacén', {
           body : 'Notificaciones activadas correctamente',
-          icon : '/icon-192.png',
+          icon : 'icon-192.png',
+          badge: 'icon-192.png',
           tag  : 'bienvenida'
         });
       }
@@ -118,7 +119,7 @@ window.notificar = function(titulo, cuerpo, urgente) {
 // ═══════════════════════════════════════════════════════════════════════
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/sw.js')
+    navigator.serviceWorker.register('sw.js')
       .then(function() { console.log('[SW] Registrado correctamente'); })
       .catch(function(e) { console.warn('[SW] No se pudo registrar:', e); });
   });
