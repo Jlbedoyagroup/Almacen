@@ -10,6 +10,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>App JLB</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  /* ══ Centro de Alertas ═══════════════════════════════════════════ */
+.notif-bell-btn { background:none; border:none; font-size:22px; cursor:pointer; padding:4px 8px; border-radius:8px; position:relative; transition:.2s; }
+.notif-bell-btn:hover { background:#f3f4f6; }
+.notif-badge-count { position:absolute; top:-4px; right:-4px; background:#dc2626; color:white; border-radius:10px; min-width:18px; height:18px; font-size:10px; font-weight:700; line-height:18px; text-align:center; border:2px solid white; display:none; padding:0 3px; }
+.notif-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:4000; display:none; }
+.notif-overlay.open { display:block; }
+.notif-panel { position:fixed; right:0; top:0; height:100%; width:380px; max-width:95vw; background:white; box-shadow:-4px 0 24px rgba(0,0,0,0.15); z-index:4001; transform:translateX(110%); transition:transform .3s cubic-bezier(.4,0,.2,1); overflow-y:auto; display:flex; flex-direction:column; }
+.notif-panel.open { transform:translateX(0); }
+.notif-panel-header { padding:18px 16px 12px; border-bottom:2px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; background:white; z-index:1; }
+.notif-item { padding:12px 16px; border-bottom:1px solid #f3f4f6; display:flex; gap:10px; align-items:flex-start; }
+.notif-item.unread { border-left:3px solid #dc2626; background:#fff9f9; }
+.notif-item-title { font-weight:700; font-size:13px; color:#111827; }
+.notif-item-msg { font-size:12px; color:#6b7280; margin-top:2px; line-height:1.4; }
+.notif-item-time { font-size:10px; color:#9ca3af; margin-top:3px; }
+.stock-alerta-banner { background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; padding:10px 14px; margin-bottom:16px; cursor:pointer; display:none; transition:.2s; }
+.stock-alerta-banner:hover { background:#fecaca; }
+.fab-notif { position:fixed; bottom:76px; right:16px; width:52px; height:52px; border-radius:50%; background:#dc2626; color:white; border:none; font-size:22px; cursor:pointer; box-shadow:0 4px 14px rgba(220,38,38,0.45); z-index:997; display:none; align-items:center; justify-content:center; }
+.fab-notif.visible { display:flex; }
+.fab-notif-badge { position:absolute; top:-3px; right:-3px; background:#111; color:white; border-radius:50%; width:18px; height:18px; font-size:9px; font-weight:700; line-height:18px; text-align:center; display:none; border:2px solid white; }
+@keyframes bellRing { 0%,100%{transform:rotate(0)} 20%{transform:rotate(-18deg)} 40%{transform:rotate(18deg)} 60%{transform:rotate(-10deg)} 80%{transform:rotate(10deg)} }
+.bell-ring { animation:bellRing .5s ease; }
   <style>
     :root { --primary: #2563eb; --bg: #f3f4f6; --white: #ffffff; --text: #1f2937; --border: #e5e7eb; --regen: #d97706; --success: #16a34a; --equip: #0891b2; --danger: #dc2626; --purple: #7c3aed; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -184,7 +205,12 @@
       <div style="text-align:center; padding:10px; border-bottom:1px solid #eee;">
          <h1 style="margin:0; font-size:16px; color:#111827;">JLBEDOYA GROUP</h1>
          <span style="font-size:11px; color:#6b7280; letter-spacing:1px;">CONTROL DE ALMACEN SPA</span>
-         <div id="headerUserInfo" class="header-user-info"></div>
+         <div style="display:inline-flex;align-items:center;gap:10px;margin-top:5px">
+  <div id="headerUserInfo" class="header-user-info"></div>
+  <button class="notif-bell-btn" id="btnNotifBell" onclick="toggleNotifPanel()" title="Centro de alertas">
+    🔔<span id="notifBadgeCount" class="notif-badge-count"></span>
+  </button>
+</div>
       </div>
       <div class="tabs-pc">
         <button class="tab-pc active" onclick="go('tab-reg', this)">Movimientos</button>
@@ -238,6 +264,9 @@
       </div>
     </div>
     <div id="tab-stock" class="content-area">
+      <div id="stockAlertaBanner" class="stock-alerta-banner" onclick="toggleNotifPanel()">
+        <span id="stockAlertaTexto"></span>
+      </div>
       <div class="card-grid">
         <div class="card">
            <h3>Insumos (Consumibles)</h3>
@@ -697,6 +726,29 @@
       </div>
     </div>
   </div>
+
+  <!-- ── Overlay + Panel Centro de Alertas ── -->
+<div class="notif-overlay" id="notifOverlay" onclick="toggleNotifPanel()"></div>
+<div class="notif-panel" id="notifPanel">
+  <div class="notif-panel-header">
+    <div>
+      <h3 style="margin:0;font-size:16px;color:#111827">🔔 Centro de Alertas</h3>
+      <div id="notifSubtitle" style="font-size:11px;color:#9ca3af;margin-top:2px"></div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="btn-secondary" style="font-size:11px;padding:5px 10px" onclick="limpiarAlertas()">Limpiar</button>
+      <button class="btn-icon" style="font-size:18px" onclick="toggleNotifPanel()">✕</button>
+    </div>
+  </div>
+  <div id="notifStockBajo"></div>
+  <div id="notifHistorial" style="flex:1"></div>
+</div>
+
+<!-- ── FAB móvil ── -->
+<button class="fab-notif" id="fabNotif" onclick="toggleNotifPanel()">
+  🔔<span class="fab-notif-badge" id="fabBadge"></span>
+</button>
+  
   <datalist id="datalistInsumosReq"></datalist>
   <datalist id="datalistProyectos"></datalist>
   <script src="shim.js"></script>
