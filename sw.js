@@ -6,13 +6,13 @@
 var CACHE_NAME = 'jlb-almacen-v1';
 
 var ASSETS_CACHE = [
-  '/',
-  '/index.html',
-  '/shim.js',
-  '/app.js',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
+  './',
+  './index.html',
+  './shim.js',
+  './app.js',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
 ];
 
