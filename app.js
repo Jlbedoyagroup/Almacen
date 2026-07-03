@@ -1,5 +1,4 @@
-<script>
-    // =========================================================================
+// =========================================================================
     // MOTOR DE BÚSQUEDA AVANZADO Y NORMALIZACIÓN DE TEXTO
     // =========================================================================
     function normalizarTextoLocal(text) {
@@ -247,7 +246,6 @@
              fill('mantEquipo', DATA.equipos);
              fill('responsableSelect', DATA.responsables);
              fill('mantResp', DATA.responsables);
-             fill('custTecnico', DATA.responsables);   // ← NUEVA
              fill('custTecnico', DATA.responsables);   // ← NUEVA
              fill('admInsUnd', DATA.unidadesCatalogo);
              fill('editUnidad', DATA.unidadesCatalogo);
@@ -2162,4 +2160,3 @@ document.addEventListener('click', function(e) {
 
 // ── Inicializar vocab al arrancar ─────────────────────────────────────
 cargarVocabAccesorios();
-</script>
