@@ -237,6 +237,20 @@
              }
              if(latestServerReqId) lastReqId = latestServerReqId;
              DATA = d; precalcularPrestamos(); await idb.set('jlb_data_cache', JSON.stringify(d));
+
+             // ── Notificación proactiva de stock bajo ──────────────────
+             var _stockBajos = (d.insumosData || []).filter(function(i) {
+               return !i.eliminado && parseFloat(i.stock) <= parseFloat(i.min) && parseFloat(i.min) > 0;
+             });
+             var _nombresLow = _stockBajos.map(function(i) { return i.nombre; });
+             var _prevLow    = window._prevLowStock || [];
+             var _nuevosLow  = _nombresLow.filter(function(n) { return _prevLow.indexOf(n) === -1; });
+             if (_nuevosLow.length > 0) {
+               var _msg = _nuevosLow.slice(0, 3).join(', ') + (_nuevosLow.length > 3 ? ' y ' + (_nuevosLow.length - 3) + ' más' : '');
+               notificar('⚠️ Stock Bajo', _nuevosLow.length + ' insumo(s): ' + _msg);
+             }
+             window._prevLowStock = _nombresLow;
+             // ─────────────────────────────────────────────────────────
              
              if(isUserBusy()) return;
 
