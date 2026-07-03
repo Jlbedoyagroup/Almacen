@@ -232,14 +232,27 @@
                  let existedBefore = DATA.requerimientos ? DATA.requerimientos.some(r => String(r.id) === String(latestServerReqId)) : false;
                  if(!existedBefore) {
                      let req = d.requerimientos[0];
-                     if (req.cliente !== "Guardando...") { notificar('🛒 Nuevo Pedido', 'De: ' + req.cliente + ' · ' + req.prioridad, true); showToast("NUEVO PEDIDO RECIBIDO", `De: ${req.cliente}<br>Prioridad: <b>${req.prioridad}</b>`, () => { let btnPc = document.getElementById('btnTabReqPC'); let btnMob = document.getElementById('btnNavReqMobile'); go('tab-req', window.innerWidth > 768 ? btnPc : btnMob); }); }
+                     if (req.cliente !== "Guardando...") { agregarAlerta('🛒', 'Nuevo Pedido', 'De: ' + req.cliente + ' · ' + req.prioridad, 'pedido'); notificar('🛒 Nuevo Pedido', 'De: ' + req.cliente + ' · ' + req.prioridad, true); showToast("NUEVO PEDIDO RECIBIDO", `De: ${req.cliente}<br>Prioridad: <b>${req.prioridad}</b>`, () => { let btnPc = document.getElementById('btnTabReqPC'); let btnMob = document.getElementById('btnNavReqMobile'); go('tab-req', window.innerWidth > 768 ? btnPc : btnMob); }); }
                  }
              }
              if(latestServerReqId) lastReqId = latestServerReqId;
              DATA = d; precalcularPrestamos(); await idb.set('jlb_data_cache', JSON.stringify(d));
 
              // ── Notificación proactiva de stock bajo ──────────────────
-             var _stockBajos = (d.insumosData || []).filter(function(i) {
+             // ── Alertas proactivas de stock bajo ──────────────────────
+             var _stockBajos  = (d.insumosData || []).filter(function(i) {
+               return !i.eliminado && parseFloat(i.stock) <= parseFloat(i.min) && parseFloat(i.min) > 0;
+             });
+             var _nombresLow  = _stockBajos.map(function(i) { return i.nombre; });
+             var _nuevosLow   = _nombresLow.filter(function(n) { return _prevLowStock.indexOf(n) === -1; });
+             if (_nuevosLow.length > 0) {
+               var _msgLow = _nuevosLow.slice(0, 3).join(', ') + (_nuevosLow.length > 3 ? ' y ' + (_nuevosLow.length - 3) + ' más' : '');
+               agregarAlerta('⚠️', 'Stock Bajo', _nuevosLow.length + ' insumo(s): ' + _msgLow, 'stock');
+               notificar('⚠️ Stock Bajo', _msgLow);
+             }
+             _prevLowStock = _nombresLow;
+             _renderNotifPanel();
+             // ─────────────────────────────────────────────────────────
                return !i.eliminado && parseFloat(i.stock) <= parseFloat(i.min) && parseFloat(i.min) > 0;
              });
              var _nombresLow = _stockBajos.map(function(i) { return i.nombre; });
@@ -423,7 +436,7 @@
       precalcularPrestamos(); renderHistorial(DATA.movimientos); renderStockList(DATA.insumosData);
       google.script.run.withFailureHandler(err => { DATA = backupDATA; precalcularPrestamos(); renderHistorial(DATA.movimientos); renderStockList(DATA.insumosData); btn.disabled=false; btn.innerText="CONFIRMAR"; alert("Error de red. Cambios revertidos: " + err.message); }).withSuccessHandler(r => {
         btn.disabled=false; btn.innerText="CONFIRMAR"; const msg = document.getElementById('msgBox');
-        if(r.ok) { msg.style.display='block'; msg.style.background='#dcfce7'; msg.style.color='#166534'; msg.innerHTML = `✅ Éxito. ` + (r.url ? `<a href="${r.url}" target="_blank"><b>Ver PDF</b></a>` : ''); if(r.alertas && r.alertas.length) { alert("⚠️ Stock Bajo:\n" + r.alertas.join("\n")); notificar('⚠️ Stock Bajo', r.alertas.join(', ')); }; ITEMS=[]; renderItems(); sincronizarGlobalSilent(); } else { alert("Error: "+r.error); }
+        if(r.ok) { msg.style.display='block'; msg.style.background='#dcfce7'; msg.style.color='#166534'; msg.innerHTML = `✅ Éxito. ` + (r.url ? `<a href="${r.url}" target="_blank"><b>Ver PDF</b></a>` : ''); if(r.alertas && r.alertas.length) { agregarAlerta('⚠️', 'Stock Bajo tras movimiento', r.alertas.join(', '), 'stock'); notificar('⚠️ Stock Bajo', r.alertas.join(', ')); }; ITEMS=[]; renderItems(); sincronizarGlobalSilent(); } else { alert("Error: "+r.error); }
       }).registrarMovimiento(p);
     }
 
@@ -2174,3 +2187,128 @@ document.addEventListener('click', function(e) {
 
 // ── Inicializar vocab al arrancar ─────────────────────────────────────
 cargarVocabAccesorios();
+// =====================================================================
+// CENTRO DE ALERTAS — persistencia in-app
+// =====================================================================
+
+var _alertas         = [];
+var _alertasNoLeidas = 0;
+var _prevLowStock    = [];
+
+function agregarAlerta(icono, titulo, msg, tipo) {
+  var hora = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
+  _alertas.unshift({ id: Date.now(), icono: icono, titulo: titulo, msg: msg, tipo: tipo || 'info', hora: hora, leida: false });
+  if (_alertas.length > 60) _alertas = _alertas.slice(0, 60);
+  _alertasNoLeidas++;
+  _actualizarBadge();
+  _renderNotifPanel();
+}
+
+function _actualizarBadge() {
+  var n      = _alertasNoLeidas;
+  var badge  = document.getElementById('notifBadgeCount');
+  var fab    = document.getElementById('fabNotif');
+  var fabBdg = document.getElementById('fabBadge');
+  var bell   = document.getElementById('btnNotifBell');
+
+  if (badge) { badge.textContent = n > 9 ? '9+' : n; badge.style.display = n > 0 ? 'block' : 'none'; }
+  if (fab)   { n > 0 ? fab.classList.add('visible') : fab.classList.remove('visible'); }
+  if (fabBdg){ fabBdg.textContent = n > 9 ? '9+' : n; fabBdg.style.display = n > 0 ? 'block' : 'none'; }
+  if (bell && n > 0) { bell.classList.add('bell-ring'); setTimeout(function(){ bell.classList.remove('bell-ring'); }, 600); }
+}
+
+function toggleNotifPanel() {
+  var panel   = document.getElementById('notifPanel');
+  var overlay = document.getElementById('notifOverlay');
+  if (!panel) return;
+
+  if (panel.classList.contains('open')) {
+    panel.classList.remove('open');
+    overlay.classList.remove('open');
+  } else {
+    _alertas.forEach(function(a) { a.leida = true; });
+    _alertasNoLeidas = 0;
+    _actualizarBadge();
+    _renderNotifPanel();
+    panel.classList.add('open');
+    overlay.classList.add('open');
+  }
+}
+
+function limpiarAlertas() {
+  _alertas = [];
+  _alertasNoLeidas = 0;
+  _actualizarBadge();
+  _renderNotifPanel();
+}
+
+function _renderNotifPanel() {
+  // ── Sección 1: Stock bajo ACTUAL (siempre en tiempo real) ────────
+  var bajos = (DATA.insumosData || []).filter(function(i) {
+    return !i.eliminado && parseFloat(i.stock) <= parseFloat(i.min) && parseFloat(i.min) > 0;
+  }).sort(function(a, b) { return parseFloat(a.stock) - parseFloat(b.stock); });
+
+  var banner    = document.getElementById('stockAlertaBanner');
+  var bannerTxt = document.getElementById('stockAlertaTexto');
+  var stockSec  = document.getElementById('notifStockBajo');
+
+  if (banner && bannerTxt) {
+    if (bajos.length > 0) {
+      banner.style.display = 'block';
+      bannerTxt.innerHTML  = '⚠️ <b>' + bajos.length + ' insumo(s) con stock bajo o agotado</b> — toca para ver el detalle';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  if (stockSec) {
+    if (bajos.length === 0) {
+      stockSec.innerHTML = '<div style="padding:12px 16px;font-size:13px;color:#16a34a;background:#f0fdf4;border-bottom:1px solid #bbf7d0;display:flex;gap:8px;align-items:center">✅ Todos los insumos están sobre el mínimo</div>';
+    } else {
+      stockSec.innerHTML =
+        '<div style="padding:10px 16px;background:#fee2e2;font-size:12px;font-weight:700;color:#991b1b;border-bottom:1px solid #fca5a5;letter-spacing:.5px">⚠️ STOCK BAJO — ' + bajos.length + ' INSUMO(S)</div>' +
+        bajos.map(function(i) {
+          var pct      = i.min > 0 ? Math.round((parseFloat(i.stock) / parseFloat(i.min)) * 100) : 0;
+          var clr      = pct <= 0 ? '#dc2626' : pct < 50 ? '#d97706' : '#ca8a04';
+          var bgRow    = pct <= 0 ? '#fff1f2' : '#fffbeb';
+          var etiqueta = parseFloat(i.stock) <= 0 ? 'AGOTADO' : 'BAJO';
+          var etqBg    = parseFloat(i.stock) <= 0 ? '#fee2e2' : '#fef9c3';
+          var etqCl    = parseFloat(i.stock) <= 0 ? '#991b1b' : '#854d0e';
+          return '<div style="padding:10px 16px;border-bottom:1px solid #fee2e2;background:' + bgRow + ';display:flex;justify-content:space-between;align-items:center;gap:8px">' +
+            '<div style="flex:1;min-width:0">' +
+              '<div style="font-weight:600;font-size:13px;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + san(i.nombre) + '</div>' +
+              '<div style="font-size:11px;color:#9ca3af;margin-top:2px">Mínimo: ' + i.min + ' ' + san(i.unidad) + '</div>' +
+            '</div>' +
+            '<div style="text-align:right;flex-shrink:0">' +
+              '<span style="background:' + etqBg + ';color:' + etqCl + ';padding:1px 6px;border-radius:6px;font-size:9px;font-weight:700;display:block;margin-bottom:3px">' + etiqueta + '</span>' +
+              '<span style="font-weight:800;font-size:16px;color:' + clr + '">' + parseFloat(i.stock) + '</span>' +
+              '<span style="font-size:10px;color:#9ca3af;margin-left:2px">' + san(i.unidad) + '</span>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+    }
+  }
+
+  // ── Sección 2: Historial de alertas del día ──────────────────────
+  var histSec  = document.getElementById('notifHistorial');
+  var subtitle = document.getElementById('notifSubtitle');
+  if (subtitle) subtitle.textContent = _alertas.length + ' alerta(s) en esta sesión';
+  if (!histSec) return;
+
+  if (_alertas.length === 0) {
+    histSec.innerHTML = '<div style="padding:30px;text-align:center;color:#9ca3af;font-size:13px">Sin alertas recientes en esta sesión</div>';
+    return;
+  }
+  histSec.innerHTML =
+    '<div style="padding:8px 16px;font-size:11px;font-weight:700;color:#6b7280;background:#f9fafb;border-bottom:1px solid #e5e7eb;letter-spacing:.5px">HISTORIAL DE ESTA SESIÓN</div>' +
+    _alertas.map(function(a) {
+      return '<div class="notif-item' + (a.leida ? '' : ' unread') + '">' +
+        '<div style="font-size:22px;flex-shrink:0">' + (a.icono || '🔔') + '</div>' +
+        '<div style="flex:1">' +
+          '<div class="notif-item-title">' + san(a.titulo) + '</div>' +
+          '<div class="notif-item-msg">'   + san(a.msg)    + '</div>' +
+          '<div class="notif-item-time">'  + a.hora        + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+}
