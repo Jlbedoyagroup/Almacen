@@ -52,6 +52,14 @@
         return temp.innerHTML;
     }
 
+    function escJS(str) {
+        return String(str)
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/"/g, '&quot;')
+            .replace(/\n/g, '\\n');
+    }
+
     function showToast(title, desc, onClickFallback) {
        const container = document.getElementById('toast-container');
        const toast = document.createElement('div');
