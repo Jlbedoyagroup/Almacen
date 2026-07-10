@@ -140,6 +140,14 @@
       cambiarTipoMovimiento(); cargarTodo(); smartPoll();
       window.addEventListener('focus', () => { resetActivity(); if(!isUserBusy() && !isSyncing) sincronizarGlobalSilent(); });
   solicitarPermisoNotificaciones();
+  var selTipo = document.getElementById('tipoMovimiento');
+  if (selTipo) {
+    selTipo.innerHTML = '<option value="">--</option><option>Salida</option><option>Entrada</option>';
+    if (currentRole === 'Almacen' || currentRole === 'Admin') {
+      selTipo.innerHTML += '<option value="Ajuste+">⬆️ Ajuste + (Agregar stock)</option>';
+      selTipo.innerHTML += '<option value="Ajuste-">⬇️ Ajuste - (Reducir stock)</option>';
+    }
+  }
 }
 
     function isUserBusy() {
@@ -172,20 +180,27 @@
     }
     
     function cambiarTipoMovimiento() {
-        const tipo = document.getElementById('tipoMovimiento').value;
-        const boxE = document.getElementById('boxEntrega'), boxR = document.getElementById('boxRecibe'), lblE = document.getElementById('lblEntrega'), lblR = document.getElementById('lblRecibe');
-        if (tipo === "Entrada") {
-            lblE.innerText = "Entrega (Técnico)"; lblR.innerText = "Recibe (Firma Automática)";
-            boxE.innerHTML = `<select id="responsableSelect"></select>`;
-            boxR.innerHTML = `<input type="text" id="responsableFirma" readonly title="Registrado automáticamente con su sesión" value="${san(currentUser)}" style="background-color: #f3f4f6; color: #6b7280; font-weight: 600;">`;
-        } else {
-            lblE.innerText = "Entrega (Firma Automática)"; lblR.innerText = "Recibe (Técnico)";
-            boxE.innerHTML = `<input type="text" id="responsableFirma" readonly title="Registrado automáticamente con su sesión" value="${san(currentUser)}" style="background-color: #f3f4f6; color: #6b7280; font-weight: 600;">`;
-            boxR.innerHTML = `<select id="responsableSelect"></select>`;
-        }
-        if(DATA && DATA.responsables) fill('responsableSelect', DATA.responsables);
+    const tipo = document.getElementById('tipoMovimiento').value;
+    const boxE = document.getElementById('boxEntrega'), boxR = document.getElementById('boxRecibe');
+    const lblE = document.getElementById('lblEntrega'), lblR = document.getElementById('lblRecibe');
+    const rowMotivo = document.getElementById('rowMotivoAjuste');
+    if (rowMotivo) rowMotivo.style.display = (tipo === 'Ajuste+' || tipo === 'Ajuste-') ? 'block' : 'none';
+    if (tipo === "Entrada") {
+        lblE.innerText = "Entrega (Técnico)"; lblR.innerText = "Recibe (Firma Automática)";
+        boxE.innerHTML = `<select id="responsableSelect"></select>`;
+        boxR.innerHTML = `<input type="text" id="responsableFirma" readonly value="${san(currentUser)}" style="background-color:#f3f4f6;color:#6b7280;font-weight:600;">`;
+    } else if (tipo === "Salida") {
+        lblE.innerText = "Entrega (Firma Automática)"; lblR.innerText = "Recibe (Técnico)";
+        boxE.innerHTML = `<input type="text" id="responsableFirma" readonly value="${san(currentUser)}" style="background-color:#f3f4f6;color:#6b7280;font-weight:600;">`;
+        boxR.innerHTML = `<select id="responsableSelect"></select>`;
+    } else if (tipo === 'Ajuste+' || tipo === 'Ajuste-') {
+        lblE.innerText = "Responsable del ajuste";
+        lblR.innerText = "Tipo";
+        boxE.innerHTML = `<input type="text" readonly value="${san(currentUser)}" style="background-color:#f3f4f6;color:#6b7280;font-weight:600;">`;
+        boxR.innerHTML = `<input type="text" readonly value="${tipo === 'Ajuste+' ? '⬆️ Agregar stock' : '⬇️ Reducir stock'}" style="background-color:#fef9c3;color:#92400e;font-weight:600;">`;
     }
-
+    if(DATA && DATA.responsables) { try { fill('responsableSelect', DATA.responsables); } catch(e) {} }
+}
     async function cargarTodo() {
       let cachedStr = await idb.get('jlb_data_cache');
       if (cachedStr) {
@@ -425,127 +440,174 @@
        dl.innerHTML = [...new Set(opts)].map(o => `<option value="${san(o)}">`).join('');
     }
 
-    function guardar() {
-      if(!ITEMS.length) return alert("Agrega items");
-      const tipoMov = val('tipoMovimiento'); if(!tipoMov || tipoMov === "--") return alert("Seleccione Acción (Salida/Entrada)");
-      const rEntrega = tipoMov === "Entrada" ? val('responsableSelect') : currentUser; const rRecibe = tipoMov === "Entrada" ? currentUser : val('responsableSelect');
-      
-      if (tipoMov === "Salida") {
-          let faltantes = [];
-          for (let i = 0; i < ITEMS.length; i++) {
-              let item = ITEMS[i];
-              let ins = DATA.insumosData ? DATA.insumosData.find(x => x.nombre === item.nom) : null;
-              let eq  = DATA.equiposData ? DATA.equiposData.find(x => x.nombre === item.nom) : null;
-
-              let stockActual = ins ? parseFloat(ins.stock) : (eq ? parseFloat(eq.stock) : 0);
-              let cantReq = parseFloat(item.cant);
-
-              if (cantReq > stockActual) {
-                  faltantes.push({
-                      nombre: item.nom,
-                      faltante: cantReq - stockActual,
-                      esInsumo: !!ins,
-                      obj: ins || eq
-                  });
-              }
-          }
-
-          if (faltantes.length > 0) {
-              let msg = "⚠️ ERROR: STOCK INSUFICIENTE EN SISTEMA\n\n";
-              faltantes.forEach(f => msg += `- ${f.nombre}: Faltan ${f.faltante} (Físicamente disponible, pero no en sistema)\n`);
-              msg += "\n¿Deseas hacer un AJUSTE EXPRESS para cuadrar el inventario a la realidad física y permitir la salida? (Esta acción quedará registrada bajo tu nombre en la Auditoría).";
-
-              if (confirm(msg)) {
-                  const btn = document.getElementById('btnGuardar');
-                  btn.disabled = true;
-                  btn.innerText = "Ajustando Stock...";
-
-                  let promesasAjuste = faltantes.map(f => {
-                      return new Promise((resolve) => {
-
-                          if (!f.obj) {
-                              f.obj = {
-                                  nombre: f.nombre,
-                                  stock: 0,
-                                  unidad: 'Und',
-                                  min: 0,
-                                  estado: 'Bueno',
-                                  ubicacion: 'Bodega'
-                              };
-                              f.esInsumo = true;
-                          }
-
-                          let stockBase = parseFloat(f.obj.stock) || 0;
-                          let nuevoStock = stockBase + f.faltante;
-
-                          if (f.esInsumo) {
-                              let newData = {
-                                  nombre: f.obj.nombre,
-                                  unidad: f.obj.unidad || 'Und',
-                                  stock: nuevoStock,
-                                  min: f.obj.min || 0
-                              };
-                              google.script.run
-                                  .withSuccessHandler(resolve)
-                                  .withFailureHandler(() => resolve())
-                                  .editarInsumo(f.nombre, newData, currentUser);
-                          } else {
-                              let newData = {
-                                  nombre: f.obj.nombre,
-                                  estado: f.obj.estado || 'Bueno',
-                                  ubicacion: f.obj.ubicacion || 'Bodega',
-                                  stock: nuevoStock
-                              };
-                              google.script.run
-                                  .withSuccessHandler(resolve)
-                                  .withFailureHandler(() => resolve())
-                                  .editarEquipo(f.nombre, newData, currentUser);
-                          }
-                      });
-                  });
-
-                  Promise.all(promesasAjuste).then(() => {
-                      faltantes.forEach(f => {
-                          if (f.obj) f.obj.stock = (parseFloat(f.obj.stock) || 0) + f.faltante;
-
-                          if (DATA.insumosData && !DATA.insumosData.find(x => x.nombre === f.nombre)) {
-                              DATA.insumosData.push({
-                                  nombre: f.obj.nombre,
-                                  stock: f.obj.stock,
-                                  unidad: f.obj.unidad || 'Und',
-                                  min: f.obj.min || 0,
-                                  eliminado: false
-                              });
-                          }
-                      });
-
-                      btn.disabled = false;
-                      btn.innerText = "CONFIRMAR";
-
-                      guardar();
-                  });
-                  return;
-              } else {
-                  return;
-              }
+   function guardar() {
+  if(!ITEMS.length) return alert("Agrega items");
+  const tipoMov = val('tipoMovimiento'); 
+  if(!tipoMov || tipoMov === "--") return alert("Seleccione Acción (Salida/Entrada)");
+ 
+  // ── Ajuste de Stock (flujo separado) ──────────────────────────────
+  if (tipoMov === 'Ajuste+' || tipoMov === 'Ajuste-') {
+    if (!ITEMS.length) return alert('Agrega al menos un ítem para ajustar.');
+    const motivoEl = document.getElementById('motivoAjuste');
+    const motivo   = motivoEl ? motivoEl.value.trim() : '';
+    if (!motivo) return alert('⚠️ El motivo del ajuste es obligatorio para la auditoría.');
+    const btn = document.getElementById('btnGuardar');
+    btn.disabled = true; btn.innerText = 'Procesando ajuste...';
+    const payload = {
+      fecha     : val('fecha'),
+      usuario   : currentUser,
+      direccion : tipoMov === 'Ajuste+' ? 'Entrada' : 'Salida',
+      motivo    : motivo,
+      items     : ITEMS.map(i => ({ nom: i.nom, cant: i.cant, und: i.und }))
+    };
+    // Optimistic UI
+    ITEMS.forEach(i => {
+      const ins = DATA.insumosData ? DATA.insumosData.find(x => x.nombre === i.nom) : null;
+      if (ins) ins.stock += (tipoMov === 'Ajuste+' ? 1 : -1) * parseFloat(i.cant);
+    });
+    renderStockList(DATA.insumosData);
+    google.script.run
+      .withFailureHandler(err => {
+        btn.disabled = false; btn.innerText = 'CONFIRMAR';
+        sincronizarGlobalSilent(); 
+        alert('Error al registrar ajuste: ' + err.message);
+      })
+      .withSuccessHandler(r => {
+        btn.disabled = false; btn.innerText = 'CONFIRMAR';
+        if (r.ok) {
+          const msg = document.getElementById('msgBox');
+          msg.style.display = 'block';
+          msg.style.background = '#fef9c3'; msg.style.color = '#92400e';
+          msg.innerHTML = '🔧 ' + r.msg;
+          if (typeof agregarAlerta === 'function') 
+            agregarAlerta('🔧', 'Ajuste de Stock', r.msg, 'info');
+          ITEMS = []; renderItems();
+          document.getElementById('tipoMovimiento').value = ''; 
+          cambiarTipoMovimiento();
+          sincronizarGlobalSilent();
+        } else { 
+          sincronizarGlobalSilent(); 
+          alert('Error: ' + r.error); 
+        }
+      })
+      .registrarAjusteStock(payload);
+    return; // detener flujo normal
+  }
+  // ── Fin bloque Ajuste ─────────────────────────────────────────────
+ 
+  const rEntrega = tipoMov === "Entrada" ? val('responsableSelect') : currentUser; 
+  const rRecibe  = tipoMov === "Entrada" ? currentUser : val('responsableSelect');
+  
+  if (tipoMov === "Salida") {
+      let faltantes = [];
+      for (let i = 0; i < ITEMS.length; i++) {
+          let item = ITEMS[i];
+          let ins = DATA.insumosData ? DATA.insumosData.find(x => x.nombre === item.nom) : null;
+          let eq  = DATA.equiposData ? DATA.equiposData.find(x => x.nombre === item.nom) : null;
+          let stockActual = ins ? parseFloat(ins.stock) : (eq ? parseFloat(eq.stock) : 0);
+          let cantReq = parseFloat(item.cant);
+          if (cantReq > stockActual) {
+              faltantes.push({
+                  nombre   : item.nom,
+                  faltante : cantReq - stockActual,
+                  esInsumo : !!ins,
+                  obj      : ins || eq
+              });
           }
       }
-
-      const btn = document.getElementById('btnGuardar'); btn.disabled=true; btn.innerText="Procesando...";
-      const p = { fecha: val('fecha'), tipoMovimiento: tipoMov, responsable: rEntrega, responsableRecepcion: rRecibe, proyecto: val('proyecto'), sectorDestino: val('sectorDestino'), generarRemision: document.getElementById('generarRemision').checked, observaciones: val('obsGeneral'), items: JSON.stringify(ITEMS.map(i=>`${i.tipo}::${i.nom}::${i.cant}::${i.und}::${i.obs}`)) };
-      const backupDATA = JSON.parse(JSON.stringify(DATA)); 
-      if (!DATA.movimientos) DATA.movimientos = [];
-      ITEMS.forEach(i => {
-         DATA.movimientos.unshift({ fecha: p.fecha, tipo: p.tipoMovimiento, item: i.nom, cantidad: i.cant + " " + i.und, responsableEntrega: p.responsable, responsableRecibe: p.responsableRecepcion, proyecto: p.proyecto, id: "" });
-         let ins = DATA.insumosData ? DATA.insumosData.find(x => x.nombre === i.nom) : null;
-         if (ins) { if (p.tipoMovimiento === "Salida") ins.stock -= parseFloat(i.cant); if (p.tipoMovimiento === "Entrada") ins.stock += parseFloat(i.cant); }
-      });
-      precalcularPrestamos(); renderHistorial(DATA.movimientos); renderStockList(DATA.insumosData);
-      google.script.run.withFailureHandler(err => { DATA = backupDATA; precalcularPrestamos(); renderHistorial(DATA.movimientos); renderStockList(DATA.insumosData); btn.disabled=false; btn.innerText="CONFIRMAR"; alert("Error de red. Cambios revertidos: " + err.message); }).withSuccessHandler(r => {
-        btn.disabled=false; btn.innerText="CONFIRMAR"; const msg = document.getElementById('msgBox');
-        if(r.ok) { msg.style.display='block'; msg.style.background='#dcfce7'; msg.style.color='#166534'; msg.innerHTML = `✅ Éxito. ` + (r.url ? `<a href="${r.url}" target="_blank"><b>Ver PDF</b></a>` : ''); if(r.alertas && r.alertas.length) { agregarAlerta('⚠️', 'Stock Bajo tras movimiento', r.alertas.join(', '), 'stock'); notificar('⚠️ Stock Bajo', r.alertas.join(', ')); }; ITEMS=[]; renderItems(); sincronizarGlobalSilent(); } else { alert("Error: "+r.error); }
-      }).registrarMovimiento(p);
-    }
+      if (faltantes.length > 0) {
+          let msg = "⚠️ ERROR: STOCK INSUFICIENTE EN SISTEMA\n\n";
+          faltantes.forEach(f => msg += `- ${f.nombre}: Faltan ${f.faltante} (Físicamente disponible, pero no en sistema)\n`);
+          msg += "\n¿Deseas hacer un AJUSTE EXPRESS para cuadrar el inventario a la realidad física y permitir la salida? (Esta acción quedará registrada bajo tu nombre en la Auditoría).";
+          if (confirm(msg)) {
+              const btn = document.getElementById('btnGuardar');
+              btn.disabled = true; btn.innerText = "Ajustando Stock...";
+              let promesasAjuste = faltantes.map(f => {
+                  return new Promise((resolve) => {
+                      if (!f.obj) {
+                          f.obj = { nombre: f.nombre, stock: 0, unidad: 'Und', min: 0, estado: 'Bueno', ubicacion: 'Bodega' };
+                          f.esInsumo = true;
+                      }
+                      let stockBase  = parseFloat(f.obj.stock) || 0;
+                      let nuevoStock = stockBase + f.faltante;
+                      if (f.esInsumo) {
+                          let newData = { nombre: f.obj.nombre, unidad: f.obj.unidad || 'Und', stock: nuevoStock, min: f.obj.min || 0 };
+                          google.script.run.withSuccessHandler(resolve).withFailureHandler(() => resolve()).editarInsumo(f.nombre, newData, currentUser);
+                      } else {
+                          let newData = { nombre: f.obj.nombre, estado: f.obj.estado || 'Bueno', ubicacion: f.obj.ubicacion || 'Bodega', stock: nuevoStock };
+                          google.script.run.withSuccessHandler(resolve).withFailureHandler(() => resolve()).editarEquipo(f.nombre, newData, currentUser);
+                      }
+                  });
+              });
+              Promise.all(promesasAjuste).then(() => {
+                  faltantes.forEach(f => {
+                      if (f.obj) f.obj.stock = (parseFloat(f.obj.stock) || 0) + f.faltante;
+                      if (DATA.insumosData && !DATA.insumosData.find(x => x.nombre === f.nombre)) {
+                          DATA.insumosData.push({ nombre: f.obj.nombre, stock: f.obj.stock, unidad: f.obj.unidad || 'Und', min: f.obj.min || 0, eliminado: false });
+                      }
+                  });
+                  btn.disabled = false; btn.innerText = "CONFIRMAR";
+                  guardar();
+              });
+              return;
+          } else { return; }
+      }
+  }
+ 
+  const btn = document.getElementById('btnGuardar'); 
+  btn.disabled = true; btn.innerText = "Procesando...";
+  const p = { 
+    fecha               : val('fecha'), 
+    tipoMovimiento      : tipoMov, 
+    responsable         : rEntrega, 
+    responsableRecepcion: rRecibe, 
+    proyecto            : val('proyecto'), 
+    sectorDestino       : val('sectorDestino'), 
+    generarRemision     : document.getElementById('generarRemision').checked, 
+    observaciones       : val('obsGeneral'), 
+    items               : JSON.stringify(ITEMS.map(i=>`${i.tipo}::${i.nom}::${i.cant}::${i.und}::${i.obs}`)) 
+  };
+  const backupDATA = JSON.parse(JSON.stringify(DATA)); 
+  if (!DATA.movimientos) DATA.movimientos = [];
+  ITEMS.forEach(i => {
+     DATA.movimientos.unshift({ fecha: p.fecha, tipo: p.tipoMovimiento, item: i.nom, cantidad: i.cant + " " + i.und, responsableEntrega: p.responsable, responsableRecibe: p.responsableRecepcion, proyecto: p.proyecto, id: "" });
+     let ins = DATA.insumosData ? DATA.insumosData.find(x => x.nombre === i.nom) : null;
+     if (ins) { 
+       if (p.tipoMovimiento === "Salida")  ins.stock -= parseFloat(i.cant); 
+       if (p.tipoMovimiento === "Entrada") ins.stock += parseFloat(i.cant); 
+     }
+  });
+  precalcularPrestamos(); 
+  renderHistorial(DATA.movimientos); 
+  renderStockList(DATA.insumosData);
+  google.script.run
+    .withFailureHandler(err => { 
+      DATA = backupDATA; 
+      precalcularPrestamos(); 
+      renderHistorial(DATA.movimientos); 
+      renderStockList(DATA.insumosData); 
+      btn.disabled = false; btn.innerText = "CONFIRMAR"; 
+      alert("Error de red. Cambios revertidos: " + err.message); 
+    })
+    .withSuccessHandler(r => {
+      btn.disabled = false; btn.innerText = "CONFIRMAR"; 
+      const msg = document.getElementById('msgBox');
+      if(r.ok) { 
+        msg.style.display = 'block'; 
+        msg.style.background = '#dcfce7'; msg.style.color = '#166534'; 
+        msg.innerHTML = `✅ Éxito. ` + (r.url ? `<a href="${r.url}" target="_blank"><b>Ver PDF</b></a>` : ''); 
+        if(r.alertas && r.alertas.length) { 
+          agregarAlerta('⚠️', 'Stock Bajo tras movimiento', r.alertas.join(', '), 'stock'); 
+          notificar('⚠️ Stock Bajo', r.alertas.join(', ')); 
+        }
+        ITEMS = []; renderItems(); 
+        sincronizarGlobalSilent(); 
+      } else { 
+        alert("Error: " + r.error); 
+      }
+    })
+    .registrarMovimiento(p);
+}
 
     function renderHistorial(l) {
       const tb = document.getElementById('tablaHistorialBody'); if(!l || !l.length) { tb.innerHTML='<tr><td colspan="8" style="text-align:center">Sin datos</td></tr>'; return; }
@@ -897,7 +959,21 @@ function guardarGestionReq() {
     function renderStockList(list) { 
    const box = document.getElementById('listaStock'); 
    if(!list || !list.length) { box.innerHTML = '<div style="padding:10px">Sin datos</div>'; return; } 
-   box.innerHTML = list.filter(i => !i.eliminado).map((i) => `<div class="stock-list-item" onclick="loadKardex('${i.nombre.replace(/'/g, "\\'")}')"><div style="flex:1"><div style="font-weight:600;">${san(i.nombre)}</div><div style="font-size:11px; color:#666">Mín: ${san(i.min)}</div></div><div style="text-align:right"><div class="stock-val ${i.stock<=i.min?'stock-low':''}">${san(i.stock)} ${san(i.unidad)}</div><div class="stock-actions"><button class="btn-icon" onclick="event.stopPropagation(); prepareEdit('${i.nombre.replace(/'/g, "\\'")}')">✏️</button><button class="btn-icon" style="color:red" onclick="event.stopPropagation(); deleteInsumo('${i.nombre.replace(/'/g, "\\'")}')">🗑️</button></div></div></div>`).join(''); 
+   box.innerHTML = list.filter(i => !i.eliminado).map((i) => {
+     const botonesAdmin = currentRole === 'Admin' 
+       ? `<button class="btn-icon" onclick="event.stopPropagation(); prepareEdit('${i.nombre.replace(/'/g, "\\'")}')">✏️</button><button class="btn-icon" style="color:red" onclick="event.stopPropagation(); deleteInsumo('${i.nombre.replace(/'/g, "\\'")}')">🗑️</button>`
+       : '';
+     return `<div class="stock-list-item" onclick="loadKardex('${i.nombre.replace(/'/g, "\\'")}')">
+       <div style="flex:1">
+         <div style="font-weight:600;">${san(i.nombre)}</div>
+         <div style="font-size:11px; color:#666">Mín: ${san(i.min)}</div>
+       </div>
+       <div style="text-align:right">
+         <div class="stock-val ${i.stock<=i.min?'stock-low':''}">${san(i.stock)} ${san(i.unidad)}</div>
+         <div class="stock-actions">${botonesAdmin}</div>
+       </div>
+     </div>`;
+   }).join(''); 
 }
 
     // =========================================================================
