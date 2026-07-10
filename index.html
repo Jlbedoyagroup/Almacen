@@ -690,7 +690,14 @@
     <div class="modal-box">
       <h3>Agregar Pieza</h3>
       <label>Descripcion *</label>
-      <input type="text" id="piezaDesc" placeholder="Ej: Bushing AT 115kV, Valvula de drenaje, Termometro...">
+      <div style="position:relative">
+        <input type="text" id="piezaDesc"
+          placeholder="Ej: Bushing AT, Valvula de drenaje..."
+          oninput="filtrarVocabAccesorios(this.value)"
+          onkeydown="navegarVocabAccesorios(event)"
+          autocomplete="off" style="width:100%">
+        <div id="piezaDescSug" style="display:none;position:absolute;top:100%;left:0;width:100%;background:white;border:1px solid #c4b5fd;border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto;z-index:3000;box-shadow:0 4px 6px rgba(0,0,0,0.1);"></div>
+      </div>
       <div class="row">
         <div style="flex:1"><label>Cantidad</label><input type="number" id="piezaCant" value="1" min="1"></div>
         <div style="flex:2"><label>Estado al ingresar</label><select id="piezaEstado"><option value="BUENO">BUENO - Completo y funcional</option><option value="DANADO">DANADO - Con dano visible</option><option value="INCOMPLETO">INCOMPLETO - Falta alguna parte</option></select></div>
