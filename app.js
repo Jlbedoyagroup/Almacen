@@ -894,10 +894,11 @@ function guardarGestionReq() {
     function guardarProv(){ google.script.run.withSuccessHandler(()=>{ document.getElementById('modalProv').style.display='none'; sincronizarGlobalSilent(); }).guardarProveedor({id:val('provId'),nombre:val('provNombre'),contacto:val('provTel'),productos:val('provProd'),notas:val('provNotas')}); }
     function delProv(id){ if(confirm("¿Borrar?")) google.script.run.withSuccessHandler(sincronizarGlobalSilent).eliminarProveedor(id); }
 
-    function t(list) { 
-       const box = document.getElementById('listaStock'); if(!list || !list.length) { box.innerHTML = '<div style="padding:10px">Sin datos</div>'; return; } 
-       box.innerHTML = list.filter(i => !i.eliminado).map((i) => `<div class="stock-list-item" onclick="loadKardex('${i.nombre.replace(/'/g, "\\'")}')"><div style="flex:1"><div style="font-weight:600;">${san(i.nombre)}</div><div style="font-size:11px; color:#666">Mín: ${san(i.min)}</div></div><div style="text-align:right"><div class="stock-val ${i.stock<=i.min?'stock-low':''}">${san(i.stock)} ${san(i.unidad)}</div><div class="stock-actions"><button class="btn-icon" onclick="event.stopPropagation(); prepareEdit('${i.nombre.replace(/'/g, "\\'")}')">✏️</button><button class="btn-icon" style="color:red" onclick="event.stopPropagation(); deleteInsumo('${i.nombre.replace(/'/g, "\\'")}')">🗑️</button></div></div></div>`).join(''); 
-    }
+    function renderStockList(list) { 
+   const box = document.getElementById('listaStock'); 
+   if(!list || !list.length) { box.innerHTML = '<div style="padding:10px">Sin datos</div>'; return; } 
+   box.innerHTML = list.filter(i => !i.eliminado).map((i) => `<div class="stock-list-item" onclick="loadKardex('${i.nombre.replace(/'/g, "\\'")}')"><div style="flex:1"><div style="font-weight:600;">${san(i.nombre)}</div><div style="font-size:11px; color:#666">Mín: ${san(i.min)}</div></div><div style="text-align:right"><div class="stock-val ${i.stock<=i.min?'stock-low':''}">${san(i.stock)} ${san(i.unidad)}</div><div class="stock-actions"><button class="btn-icon" onclick="event.stopPropagation(); prepareEdit('${i.nombre.replace(/'/g, "\\'")}')">✏️</button><button class="btn-icon" style="color:red" onclick="event.stopPropagation(); deleteInsumo('${i.nombre.replace(/'/g, "\\'")}')">🗑️</button></div></div></div>`).join(''); 
+}
 
     // =========================================================================
     // RESTAURACIÓN DEL FILTRO DE EQUIPOS Y CÁLCULO DE PRÉSTAMOS
