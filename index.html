@@ -197,9 +197,18 @@
      <div class="login-box">
         <h2>&#x1F512; Control de Acceso</h2>
         <p style="color:#666; font-size:13px; margin-bottom:20px;">JLBEDOYA GROUP - ALMACEN</p>
-        <input type="text" id="loginUser" placeholder="Usuario" autocomplete="off">
-        <input type="password" id="loginPass" placeholder="Contrasena" autocomplete="off" onkeypress="if(event.key==='Enter') intentarLogin()">
-        <button class="btn-primary" id="btnLoginBtn" onclick="intentarLogin()">INGRESAR</button>
+        <input type="text" name="fakeuser" style="display:none" tabindex="-1">
+<input type="password" name="fakepass" style="display:none" tabindex="-1">
+<input type="text" id="loginUser" placeholder="Usuario"
+  autocomplete="new-password" readonly
+  onfocus="this.removeAttribute('readonly')"
+  onclick="this.removeAttribute('readonly')">
+<input type="password" id="loginPass" placeholder="Contrasena"
+  autocomplete="new-password" readonly
+  onfocus="this.removeAttribute('readonly')"
+  onclick="this.removeAttribute('readonly')"
+  onkeypress="if(event.key==='Enter') intentarLogin()">
+<button class="btn-primary" id="btnLoginBtn" onclick="intentarLogin()">INGRESAR</button>
         <div id="loginError" style="color:red; font-size:12px; margin-top:10px; display:none;"></div>
      </div>
   </div>
