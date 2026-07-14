@@ -100,18 +100,25 @@
 
     window.onload = async () => { document.getElementById('fecha').valueAsDate = new Date(); await verificarSesion(); }
 
-    async function verificarSesion() {
-      let savedUser = await idb.get('jlb_user');
-      let savedRole = await idb.get('jlb_role');
-      let loginTs = await idb.get('jlb_login_ts');
-      
-      if (savedUser && savedRole && loginTs && (Date.now() - loginTs < 43200000)) {
-         currentUser = savedUser; currentRole = savedRole; iniciarApp();
-      } else {
-         await idb.remove('jlb_user'); await idb.remove('jlb_role'); await idb.remove('jlb_login_ts');
-         document.getElementById('loginOverlay').style.display = 'flex';
-      }
-    }
+   async function verificarSesion() {
+  let savedUser = await idb.get('jlb_user');
+  let savedRole = await idb.get('jlb_role');
+  let loginTs   = await idb.get('jlb_login_ts');
+  
+  if (savedUser && savedRole && loginTs && (Date.now() - loginTs < 43200000)) {
+    currentUser = savedUser; currentRole = savedRole; iniciarApp();
+  } else {
+    await idb.remove('jlb_user'); await idb.remove('jlb_role'); await idb.remove('jlb_login_ts');
+    document.getElementById('loginOverlay').style.display = 'flex';
+    // Forzar campos vacíos después de que el navegador los rellene
+    setTimeout(() => {
+      const u = document.getElementById('loginUser');
+      const p = document.getElementById('loginPass');
+      if (u) u.value = '';
+      if (p) p.value = '';
+    }, 300);
+  }
+}
 
     function intentarLogin() {
       const u = document.getElementById('loginUser').value;
