@@ -1323,6 +1323,11 @@ function goRegen(panelId) {
     var cpEl = document.getElementById('cpFechaCierre');
     if (cpEl && !cpEl.value) cpEl.value = new Date().toISOString().split('T')[0];
   }
+  if (panelId === 'regen-legacy') {
+    loadRegenInsumos();
+    poblarSelectResp('regResp');
+    renderHistRegen(DATA.regeneracion || []);
+  }
 }
 
 // ─── Panel 1: Stock de Contenedores ──────────────────────────────────
