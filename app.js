@@ -1861,7 +1861,12 @@ function checkEstadoTrafoUI(inputId, targetId) {
 // Agregar al final de Javascript.html
 // =====================================================================
 
-var _piezasSesion = [];       // Piezas pendientes de la sesión actual
+var _piezasSalidaSel = {};
+var _trafoSalidaActual = '';
+var _ultimaBusquedaSalida = null;
+var _firmaSalidaCtx = null;
+var _firmaSalidaTrazando = false;
+var _tieneFirmaSalida = false;       // Piezas pendientes de la sesión actual
 var _firmaCtx     = null;     // Contexto canvas de firma
 var _firmaTrazando = false;   // Estado de dibujo
 var _tienesFirma  = false;    // Si el canvas tiene contenido
@@ -1875,11 +1880,23 @@ function goCust(panelId) {
   if (panel) panel.classList.add('active');
   var tab = document.querySelector('.cust-sub-tab[data-cust="' + panelId + '"]');
   if (tab) tab.classList.add('active');
+
   if (panelId === 'cust-activa') renderCustodiaActiva();
+
   if (panelId === 'cust-registrar') {
     var f = document.getElementById('custFecha');
     if (f && !f.value) f.value = new Date().toISOString().split('T')[0];
     poblarSelectResp('custTecnico');
+  }
+
+  if (panelId === 'cust-salida') {
+    var fs = document.getElementById('salFecha');
+    if (fs && !fs.value) fs.value = new Date().toISOString().split('T')[0];
+    if (window._trafoSalidaPrefill) {
+      document.getElementById('salBuscarTrafo').value = window._trafoSalidaPrefill;
+      window._trafoSalidaPrefill = '';
+      buscarPiezasParaSalida();
+    }
   }
 }
 
@@ -2075,32 +2092,39 @@ function renderDetalleTrafo(r, idTrafo, contenedor) {
     return;
   }
   var res = r.resumen;
-  var html = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">' +
+  var html = '<button class="btn-primary" style="background:#7c3aed;margin-bottom:16px" onclick="irASalidaDesdeTrafo(\'' + san(idTrafo) + '\')">📤 Registrar Salida de Piezas</button>';
+
+  html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">' +
     statBox(res.EN_ALMACEN   || 0, 'En almacén',   '#dbeafe','#1e40af') +
     statBox(res.EN_ENSAMBLE  || 0, 'En ensamble',  '#fef9c3','#854d0e') +
     statBox(res.ENTREGADO    || 0, 'Entregados',   '#dcfce7','#166534') +
     statBox(res.FALTANTE     || 0, 'Faltantes',    '#fee2e2','#991b1b') +
   '</div>';
 
-  // Sesiones
   if (r.sesiones.length) {
-    html += '<div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px">SESIONES DE ENTREGA</div>';
+    html += '<div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px">HISTORIAL DE SESIONES</div>';
     html += r.sesiones.map(function(s) {
-      return '<div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px">' +
+      var esSalida = s.tipo === 'SALIDA';
+      var bg = esSalida ? '#f5f3ff' : '#eff6ff';
+      var bd = esSalida ? '#c4b5fd' : '#bfdbfe';
+      var icono = esSalida ? '📤' : '📥';
+      var etiqueta = esSalida ? 'SALIDA' : 'INGRESO';
+      return '<div style="background:' + bg + ';border:1px solid ' + bd + ';border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px">' +
+        icono + ' <b>' + etiqueta + '</b> · ' +
         '<b>' + san(s.idSesion) + '</b>' +
         ' · ' + san(s.fecha) +
-        ' · Técnico: <b>' + san(s.respEntrega) + '</b>' +
-        ' · Recibió: ' + san(s.respRecibe) +
+        (esSalida
+          ? ' · Entregó: <b>' + san(s.entregadoPor) + '</b> · Recibió: <b>' + san(s.recibidoPor) + '</b>'
+          : ' · Técnico: <b>' + san(s.entregadoPor) + '</b> · Recibió: ' + san(s.recibidoPor)) +
         (s.firmado ? ' · <span style="color:#16a34a;font-weight:700">✅ FIRMADO</span>' : ' · <span style="color:#dc2626">⚠ Sin firma</span>') +
         ' · ' + s.totalPiezas + ' pieza(s)' +
       '</div>';
     }).join('');
   }
 
-  // Tabla de piezas
   html += '<div style="font-size:12px;font-weight:600;color:#6b7280;margin:12px 0 8px">PIEZAS</div>';
-  html += '<div class="table-container"><table class="data-table" style="min-width:500px"><thead>' +
-    '<tr><th>Descripción</th><th>Cant.</th><th>Estado ingreso</th><th>Estado actual</th><th>Fecha</th><th>Acción</th></tr>' +
+  html += '<div class="table-container"><table class="data-table" style="min-width:600px"><thead>' +
+    '<tr><th>Descripción</th><th>Cant.</th><th>Estado ingreso</th><th>Estado actual</th><th>Entregado a</th><th>Cambiar estado</th></tr>' +
   '</thead><tbody>' +
   r.piezas.map(function(p) {
     var estCl = {
@@ -2108,22 +2132,25 @@ function renderDetalleTrafo(r, idTrafo, contenedor) {
       ENTREGADO:'est-entregado', FALTANTE:'est-faltante', REEMPLAZADO:'est-reemplazado'
     }[p.estadoActual] || '';
     var ingCl = p.estadoIngreso === 'BUENO' ? 'color:#16a34a' : p.estadoIngreso === 'DAÑADO' ? 'color:#dc2626' : 'color:#d97706';
+    var puedeEditarRapido = p.estadoActual !== 'ENTREGADO';
     return '<tr>' +
       '<td><b>' + san(p.descripcion) + '</b>' + (p.obs ? '<br><span style="font-size:11px;color:#9ca3af">' + san(p.obs) + '</span>' : '') + '</td>' +
       '<td style="text-align:center">' + p.cantidad + '</td>' +
       '<td><span style="font-size:11px;font-weight:600;' + ingCl + '">' + p.estadoIngreso + '</span></td>' +
       '<td><span class="' + estCl + '">' + p.estadoActual + '</span></td>' +
-      '<td style="font-size:11px;color:#9ca3af">' + san(p.fechaIngreso) + '</td>' +
+      '<td style="font-size:11px;color:#6b7280">' + (p.entregadoA ? san(p.entregadoA) : '—') + '</td>' +
       '<td>' +
-        '<select id="est-' + p.id + '" style="font-size:11px;padding:4px;border:1px solid #d1d5db;border-radius:4px">' +
-          ['EN_ALMACEN','EN_ENSAMBLE','ENTREGADO','FALTANTE','REEMPLAZADO'].map(function(e) {
-            return '<option' + (e === p.estadoActual ? ' selected' : '') + '>' + e + '</option>';
-          }).join('') +
-        '</select>' +
+        (puedeEditarRapido
+          ? '<select id="est-' + p.id + '" style="font-size:11px;padding:4px;border:1px solid #d1d5db;border-radius:4px">' +
+              ['EN_ALMACEN','EN_ENSAMBLE','FALTANTE','REEMPLAZADO'].map(function(e) {
+                return '<option' + (e === p.estadoActual ? ' selected' : '') + '>' + e + '</option>';
+              }).join('') +
+            '</select>'
+          : '<span style="font-size:11px;color:#9ca3af">Entregado — use historial</span>') +
       '</td>' +
     '</tr>';
   }).join('') + '</tbody></table></div>' +
-  '<button class="btn-primary" style="background:#7c3aed;margin-top:16px" onclick="guardarEstadosDesdeBusqueda(' + JSON.stringify(r.piezas.map(function(p){return p.id;})) + ')">GUARDAR CAMBIOS DE ESTADO</button>';
+  '<button class="btn-primary" style="background:#7c3aed;margin-top:16px" onclick="guardarEstadosDesdeBusqueda(' + JSON.stringify(r.piezas.filter(function(p){return p.estadoActual!=='ENTREGADO';}).map(function(p){return p.id;})) + ')">GUARDAR CAMBIOS DE ESTADO</button>';
 
   contenedor.innerHTML = html;
 }
@@ -2502,4 +2529,179 @@ function _renderNotifPanel() {
         '</div>' +
       '</div>';
     }).join('');
+}
+function irASalidaDesdeTrafo(idTrafo) {
+  window._trafoSalidaPrefill = idTrafo;
+  goCust('cust-salida');
+}
+
+function buscarPiezasParaSalida() {
+  var id  = (document.getElementById('salBuscarTrafo').value || '').trim().toUpperCase();
+  var res = document.getElementById('salResultado');
+  if (!id) { showToast('⚠️', 'Campo requerido', 'Ingresa un número de trafo.', '#dc2626'); return; }
+  _trafoSalidaActual = id;
+  _piezasSalidaSel   = {};
+  res.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:20px">🔍 Buscando...</div>';
+
+  google.script.run
+    .withSuccessHandler(function(r) {
+      _ultimaBusquedaSalida = r;
+      renderPiezasParaSalida(r, id, res);
+    })
+    .withFailureHandler(function(e) {
+      res.innerHTML = '<div style="color:#dc2626;padding:10px">Error: ' + san(e.message) + '</div>';
+    })
+    .obtenerAccesoriosPorTrafo(id);
+}
+
+function renderPiezasParaSalida(r, idTrafo, contenedor) {
+  var disponibles = (r.piezas || []).filter(function(p) {
+    return p.estadoActual === 'EN_ALMACEN' || p.estadoActual === 'EN_ENSAMBLE';
+  });
+
+  if (!disponibles.length) {
+    contenedor.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:20px">No hay piezas disponibles para salida en el trafo <b>' + san(idTrafo) + '</b></div>';
+    var panel = document.getElementById('salPanelEntrega');
+    if (panel) panel.style.display = 'none';
+    return;
+  }
+
+  contenedor.innerHTML =
+    '<div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px">Selecciona las piezas a entregar (' + disponibles.length + ' disponible(s) — puedes elegir parcial o todas)</div>' +
+    disponibles.map(function(p) {
+      var sel   = !!_piezasSalidaSel[p.id];
+      var estCl = p.estadoActual === 'EN_ALMACEN' ? 'est-almacen' : 'est-ensamble';
+      return '<div class="pieza-item" style="cursor:pointer;' + (sel ? 'border-color:#7c3aed;background:#f5f3ff;' : '') + '" onclick="togglePiezaSalidaSel(\'' + p.id + '\')">' +
+        '<div style="flex:1"><b style="font-size:13px">' + san(p.descripcion) + '</b> <span style="font-size:11px;color:#6b7280">x' + p.cantidad + '</span>' +
+        ' <span class="' + estCl + '" style="margin-left:6px">' + p.estadoActual + '</span></div>' +
+        '<span style="font-size:20px">' + (sel ? '✅' : '⬜') + '</span>' +
+      '</div>';
+    }).join('');
+
+  actualizarResumenSalidaSel();
+}
+
+function togglePiezaSalidaSel(id) {
+  if (_piezasSalidaSel[id]) {
+    delete _piezasSalidaSel[id];
+  } else {
+    var p = (_ultimaBusquedaSalida && _ultimaBusquedaSalida.piezas || []).find(function(x) { return x.id === id; });
+    if (p) _piezasSalidaSel[id] = p;
+  }
+  renderPiezasParaSalida(_ultimaBusquedaSalida, _trafoSalidaActual, document.getElementById('salResultado'));
+}
+
+function actualizarResumenSalidaSel() {
+  var keys    = Object.keys(_piezasSalidaSel);
+  var panel   = document.getElementById('salPanelEntrega');
+  var resumen = document.getElementById('salResumenSeleccion');
+  if (!panel) return;
+  if (keys.length === 0) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  if (resumen) resumen.innerHTML = '📦 <b>' + keys.length + '</b> pieza(s) seleccionada(s) para entregar';
+}
+
+function abrirModalFirmaSalida() {
+  var recibe = (document.getElementById('salRecibePor').value || '').trim();
+  if (!recibe) { showToast('⚠️', 'Campo requerido', 'Ingresa el nombre de quien recibe.', '#dc2626'); return; }
+  var keys = Object.keys(_piezasSalidaSel);
+  if (!keys.length) { showToast('⚠️', 'Sin piezas', 'Selecciona al menos una pieza.', '#dc2626'); return; }
+
+  document.getElementById('salFirmaResumen').innerHTML =
+    '<b>Trafo:</b> ' + san(_trafoSalidaActual) +
+    ' &nbsp;·&nbsp; <b>Recibe:</b> ' + san(recibe) +
+    ' &nbsp;·&nbsp; <b>' + keys.length + ' pieza(s)</b>';
+
+  document.getElementById('modalFirmaSalida').style.display = 'flex';
+  setTimeout(initFirmaSalidaCanvas, 100);
+}
+
+function initFirmaSalidaCanvas() {
+  var canvas = document.getElementById('firmaSalidaCanvas');
+  if (!canvas) return;
+  _firmaSalidaCtx      = canvas.getContext('2d');
+  _firmaSalidaTrazando = false;
+  _tieneFirmaSalida     = false;
+  _firmaSalidaCtx.clearRect(0, 0, canvas.width, canvas.height);
+  _firmaSalidaCtx.strokeStyle = '#7c3aed';
+  _firmaSalidaCtx.lineWidth   = 2.5;
+  _firmaSalidaCtx.lineCap     = 'round';
+  _firmaSalidaCtx.lineJoin    = 'round';
+  canvas.classList.remove('firmado');
+  document.getElementById('salFirmaStatus').textContent = 'Firma en el recuadro superior';
+
+  function getPos(e) {
+    var r = canvas.getBoundingClientRect();
+    var sc = canvas.width / r.width;
+    if (e.touches) return { x: (e.touches[0].clientX - r.left) * sc, y: (e.touches[0].clientY - r.top) * sc };
+    return { x: (e.clientX - r.left) * sc, y: (e.clientY - r.top) * sc };
+  }
+
+  canvas.onmousedown = canvas.ontouchstart = function(e) {
+    e.preventDefault(); _firmaSalidaTrazando = true;
+    var p = getPos(e); _firmaSalidaCtx.beginPath(); _firmaSalidaCtx.moveTo(p.x, p.y);
+  };
+  canvas.onmousemove = canvas.ontouchmove = function(e) {
+    e.preventDefault(); if (!_firmaSalidaTrazando) return;
+    var p = getPos(e); _firmaSalidaCtx.lineTo(p.x, p.y); _firmaSalidaCtx.stroke();
+    if (!_tieneFirmaSalida) {
+      _tieneFirmaSalida = true;
+      canvas.classList.add('firmado');
+      document.getElementById('salFirmaStatus').textContent = '✅ Firma capturada';
+    }
+  };
+  canvas.onmouseup = canvas.onmouseleave = canvas.ontouchend = function() { _firmaSalidaTrazando = false; };
+}
+
+function limpiarFirmaSalida() {
+  var canvas = document.getElementById('firmaSalidaCanvas');
+  if (!canvas || !_firmaSalidaCtx) return;
+  _firmaSalidaCtx.clearRect(0, 0, canvas.width, canvas.height);
+  _tieneFirmaSalida = false;
+  canvas.classList.remove('firmado');
+  document.getElementById('salFirmaStatus').textContent = 'Firma en el recuadro superior';
+}
+
+function guardarSalidaConFirma() {
+  if (!_tieneFirmaSalida) {
+    showToast('⚠️', 'Firma requerida', 'Quien recibe debe firmar antes de guardar.', '#dc2626');
+    return;
+  }
+  var canvas = document.getElementById('firmaSalidaCanvas');
+  var firma  = canvas ? canvas.toDataURL('image/png') : '';
+  var btn    = document.getElementById('btnGuardarSalidaFirma');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+
+  var payload = {
+    idTrafo     : _trafoSalidaActual,
+    fecha       : document.getElementById('salFecha').value,
+    entregadoPor: currentUser,
+    recibidoPor : (document.getElementById('salRecibePor').value || '').trim(),
+    firmaBase64 : firma,
+    obs         : (document.getElementById('salObs').value || '').trim(),
+    piezaIds    : Object.keys(_piezasSalidaSel)
+  };
+
+  google.script.run
+    .withSuccessHandler(function(r) {
+      btn.disabled = false; btn.textContent = 'CONFIRMAR ENTREGA';
+      if (r.ok) {
+        showToast('✅', 'Entrega registrada', r.msg, '#7c3aed');
+        document.getElementById('modalFirmaSalida').style.display = 'none';
+        _piezasSalidaSel = {};
+        document.getElementById('salRecibePor').value = '';
+        document.getElementById('salObs').value = '';
+        var panel = document.getElementById('salPanelEntrega');
+        if (panel) panel.style.display = 'none';
+        buscarPiezasParaSalida();
+        sincronizarGlobalSilent();
+      } else {
+        showToast('❌', 'Error', r.error, '#dc2626');
+      }
+    })
+    .withFailureHandler(function(e) {
+      btn.disabled = false; btn.textContent = 'CONFIRMAR ENTREGA';
+      showToast('❌', 'Error de conexión', e.message, '#dc2626');
+    })
+    .registrarSalidaCustodia(payload);
 }
