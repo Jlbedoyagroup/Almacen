@@ -123,3 +123,9 @@ if ('serviceWorker' in navigator) {
       .catch(function(e) { console.warn('[SW] No se pudo registrar:', e); });
   });
 }
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
+}
