@@ -485,10 +485,11 @@
     </div>
     <div id="tab-cust" class="content-area">
       <div class="cust-sub-nav">
-        <button class="cust-sub-tab active" data-cust="cust-registrar" onclick="goCust('cust-registrar')">Registrar Ingreso</button>
-        <button class="cust-sub-tab" data-cust="cust-trafo" onclick="goCust('cust-trafo')">Por Trafo</button>
-        <button class="cust-sub-tab" data-cust="cust-activa" onclick="goCust('cust-activa')">Custodia Activa</button>
-      </div>
+  <button class="cust-sub-tab active" data-cust="cust-registrar" onclick="goCust('cust-registrar')">Registrar Ingreso</button>
+  <button class="cust-sub-tab" data-cust="cust-salida" onclick="goCust('cust-salida')">Registrar Salida</button>
+  <button class="cust-sub-tab" data-cust="cust-trafo" onclick="goCust('cust-trafo')">Por Trafo</button>
+  <button class="cust-sub-tab" data-cust="cust-activa" onclick="goCust('cust-activa')">Custodia Activa</button>
+</div>
       <div id="cust-registrar" class="cust-sub-panel active">
         <div class="card-grid">
           <div class="card" style="border-top:4px solid #7c3aed">
@@ -512,6 +513,29 @@
           </div>
         </div>
       </div>
+      <div id="cust-salida" class="cust-sub-panel">
+    <div class="card-grid">
+      <div class="card" style="border-top:4px solid #7c3aed">
+        <h3 style="color:#7c3aed">Buscar Piezas por Trafo</h3>
+        <div class="row" style="align-items:flex-end">
+          <div style="flex:2"><label>Nro. Entrada / Trafo</label><input type="text" id="salBuscarTrafo" placeholder="Ej: 13653" onkeypress="if(event.key==='Enter') buscarPiezasParaSalida()"></div>
+          <div style="flex:1"><button class="btn-primary" style="background:#7c3aed;margin-top:0;padding:12px" onclick="buscarPiezasParaSalida()">Buscar</button></div>
+        </div>
+        <div id="salResultado" style="margin-top:16px;max-height:340px;overflow-y:auto"></div>
+      </div>
+      <div class="card" id="salPanelEntrega" style="border-top:4px solid #a78bfa;display:none">
+        <h3>Datos de la Entrega</h3>
+        <div id="salResumenSeleccion" style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px;font-weight:600;color:#5b21b6"></div>
+        <label>Recibido por (Cliente / Técnico) *</label>
+        <input type="text" id="salRecibePor" placeholder="Nombre de quien recibe">
+        <label>Fecha</label>
+        <input type="date" id="salFecha">
+        <label>Observaciones</label>
+        <input type="text" id="salObs" placeholder="Opcional...">
+        <button class="btn-primary" style="background:#7c3aed;margin-top:16px" onclick="abrirModalFirmaSalida()">CONFIRMAR Y FIRMAR ENTREGA</button>
+      </div>
+    </div>
+  </div>
       <div id="cust-trafo" class="cust-sub-panel">
         <div class="card" style="border-top:4px solid #7c3aed">
           <h3 style="color:#7c3aed">Accesorios por Trafo</h3>
@@ -741,6 +765,24 @@
       </div>
     </div>
   </div>
+
+  <div id="modalFirmaSalida" class="modal-overlay">
+    <div class="modal-box" style="max-width:520px">
+      <h3>Firma de Quien Recibe</h3>
+      <div id="salFirmaResumen" style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px"></div>
+      <p style="font-size:13px;color:#4b5563;margin:0 0 10px">Quien recibe confirma haber recibido las piezas listadas de <b>JLBedoya Group</b>.</p>
+      <canvas id="firmaSalidaCanvas" class="firma-canvas" width="460" height="180" style="width:100%;max-height:180px"></canvas>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+        <span id="salFirmaStatus" style="font-size:12px;color:#9ca3af">Firma en el recuadro superior</span>
+        <button class="btn-secondary" style="padding:6px 14px;font-size:12px" onclick="limpiarFirmaSalida()">Limpiar</button>
+      </div>
+      <div class="row" style="margin-top:20px">
+        <button class="btn-secondary" onclick="document.getElementById('modalFirmaSalida').style.display='none'">Cancelar</button>
+        <button id="btnGuardarSalidaFirma" class="btn-primary" style="background:#7c3aed;margin-top:0" onclick="guardarSalidaConFirma()">CONFIRMAR ENTREGA</button>
+      </div>
+    </div>
+  </div>
+  
   <div id="modalDetalleCustodia" class="modal-overlay">
     <div class="modal-box" style="max-width:700px">
       <h3 id="modalCustTitulo">Accesorios del Trafo</h3>
