@@ -1867,6 +1867,7 @@ var _ultimaBusquedaSalida = null;
 var _firmaSalidaCtx = null;
 var _firmaSalidaTrazando = false;
 var _tieneFirmaSalida = false;       // Piezas pendientes de la sesión actual
+var _piezasSesion = [];       // Piezas pendientes de la sesión actual
 var _firmaCtx     = null;     // Contexto canvas de firma
 var _firmaTrazando = false;   // Estado de dibujo
 var _tienesFirma  = false;    // Si el canvas tiene contenido
