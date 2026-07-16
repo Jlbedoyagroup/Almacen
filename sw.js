@@ -1,10 +1,9 @@
 /**
  * sw.js — Service Worker JLBedoya Almacén
+ * Estrategia: NETWORK-FIRST para assets propios (siempre trae lo último)
  * Rutas relativas para repo en subdirectorio /Almacen/
  */
-
-var CACHE_NAME = 'jlb-almacen-v3';
-
+var CACHE_NAME = 'jlb-almacen-v4';
 var ASSETS_CACHE = [
   './',
   './index.html',
@@ -53,20 +52,20 @@ self.addEventListener('fetch', function(e) {
     return;
   }
 
-  // Assets → cache primero
+  // Assets propios (HTML/JS) → NETWORK-FIRST, cache solo como respaldo offline
   e.respondWith(
-    caches.match(e.request).then(function(cached) {
-      if (cached) return cached;
-      return fetch(e.request).then(function(response) {
-        if (!response || response.status !== 200 || response.type === 'opaque') {
-          return response;
-        }
+    fetch(e.request).then(function(response) {
+      if (response && response.status === 200 && response.type !== 'opaque') {
         var toCache = response.clone();
         caches.open(CACHE_NAME).then(function(cache) {
           cache.put(e.request, toCache);
         });
-        return response;
-      }).catch(function() {
+      }
+      return response;
+    }).catch(function() {
+      // Sin internet → usar lo que haya en caché
+      return caches.match(e.request).then(function(cached) {
+        if (cached) return cached;
         if (e.request.mode === 'navigate') {
           return caches.match('./index.html');
         }
