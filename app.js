@@ -1356,7 +1356,7 @@ function renderStockContenedores() {
   setEl('statVacios',   vacios);
 
   if (contenedores.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#9ca3af;padding:20px">' +
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#9ca3af;padding:20px">' +
       'Sin contenedores. Usa "+ Registrar Contenedor".</td></tr>';
     return;
   }
@@ -1382,10 +1382,13 @@ function renderStockContenedores() {
       '<td><span class="cont-badge ' + pClass + '">' + c.propiedad + '</span></td>' +
       '<td style="font-size:12px;color:#6b7280">' + refStr + '</td>' +
       '<td style="font-size:11px;color:#9ca3af">' + c.fechaIngreso + '</td>' +
+      '<td>' +
+        '<button class="btn-icon" title="Recargar contenedor" onclick="abrirModalRecarga(\'' + c.codigo + '\')">🔄</button>' +
+        '<button class="btn-icon" title="Ver historial" onclick="abrirHistorialDesdeStock(\'' + c.codigo + '\')">📋</button>' +
+      '</td>' +
     '</tr>';
   }).join('');
 }
-
 // ─── Modal: Registrar Nuevo Contenedor ───────────────────────────────
 
 function abrirModalNuevoContenedor() {
@@ -2710,4 +2713,140 @@ function guardarSalidaConFirma() {
       showToast('❌', 'Error de conexión', e.message, '#dc2626');
     })
     .registrarSalidaCustodia(payload);
+}
+
+function abrirModalRecarga(codigo) {
+  var c = (DATA.contenedores || []).find(function(x) { return x.codigo === codigo; });
+  if (!c) { showToast('❌', 'Error', 'Contenedor no encontrado en memoria local.', '#dc2626'); return; }
+
+  document.getElementById('recCodigo').value = c.codigo;
+  document.getElementById('recCodigoDisplay').textContent = c.codigo;
+  document.getElementById('recLitrosActuales').textContent = c.litrosActuales + ' L / ' + c.capacidad + 'L capacidad';
+  document.getElementById('recTipoAceite').value = c.tipoAceite || '';
+  document.getElementById('recPropiedad').value = c.propiedad || 'JLB';
+  document.getElementById('recOrigenRef').value = c.propiedad === 'CLIENTE' ? (c.clienteRef || '') : '';
+  document.getElementById('recLitrosNuevos').value = '';
+  document.getElementById('recObs').value = '';
+  var fEl = document.getElementById('recFecha');
+  if (fEl) fEl.value = new Date().toISOString().split('T')[0];
+  poblarSelectResp('recResponsable');
+  toggleOrigenRecarga();
+
+  document.getElementById('modalRecargaContenedor').style.display = 'flex';
+}
+
+function toggleOrigenRecarga() {
+  var prop = document.getElementById('recPropiedad').value;
+  var label = document.getElementById('recOrigenLabel');
+  if (label) {
+    label.textContent = prop === 'CLIENTE'
+      ? 'Cliente / Nro. Trafo (Ref. de origen) *'
+      : 'Proveedor (Ref. de origen) *';
+  }
+}
+
+function guardarRecargaContenedor() {
+  var codigo       = document.getElementById('recCodigo').value;
+  var litrosNuevos = document.getElementById('recLitrosNuevos').value;
+  var origenRef    = (document.getElementById('recOrigenRef').value || '').trim();
+  var responsable  = document.getElementById('recResponsable').value;
+
+  if (litrosNuevos === '' || isNaN(parseFloat(litrosNuevos))) {
+    showToast('⚠️', 'Campo requerido', 'Ingresa la cantidad de litros.', '#dc2626');
+    return;
+  }
+  if (!origenRef) {
+    showToast('⚠️', 'Campo requerido', 'Ingresa la referencia de origen.', '#dc2626');
+    return;
+  }
+
+  var btn = document.getElementById('btnGuardarRecarga');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+
+  var payload = {
+    codigo      : codigo,
+    litrosNuevos: parseFloat(litrosNuevos),
+    tipoAceite  : (document.getElementById('recTipoAceite').value || '').trim(),
+    propiedad   : document.getElementById('recPropiedad').value,
+    origenRef   : origenRef,
+    responsable : responsable,
+    obs         : (document.getElementById('recObs').value || '').trim(),
+    fecha       : document.getElementById('recFecha').value
+  };
+
+  google.script.run
+    .withSuccessHandler(function(r) {
+      btn.disabled = false; btn.textContent = 'CONFIRMAR RECARGA';
+      if (r.ok) {
+        showToast('✅', 'Contenedor recargado', r.msg, '#16a34a');
+        document.getElementById('modalRecargaContenedor').style.display = 'none';
+        sincronizarGlobalSilent();
+      } else {
+        showToast('❌', 'Error', r.error, '#dc2626');
+      }
+    })
+    .withFailureHandler(function(e) {
+      btn.disabled = false; btn.textContent = 'CONFIRMAR RECARGA';
+      showToast('❌', 'Error de conexión', e.message, '#dc2626');
+    })
+    .registrarRecargaContenedor(payload);
+}
+
+function abrirHistorialDesdeStock(codigo) {
+  goRegen('regen-legacy');
+  setTimeout(function() {
+    var input = document.getElementById('histContCodigo');
+    if (input) {
+      input.value = codigo;
+      buscarHistorialContenedor();
+    }
+  }, 150);
+}
+
+function buscarHistorialContenedor() {
+  var codigo = (document.getElementById('histContCodigo').value || '').trim().toUpperCase();
+  var cont   = document.getElementById('histContResultado');
+  if (!codigo) { showToast('⚠️', 'Campo requerido', 'Escribe el código del contenedor.', '#dc2626'); return; }
+
+  cont.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:20px">🔍 Buscando...</div>';
+
+  google.script.run
+    .withSuccessHandler(function(r) { renderHistorialContenedor(r, codigo, cont); })
+    .withFailureHandler(function(e) {
+      cont.innerHTML = '<div style="color:#dc2626;padding:10px">Error: ' + san(e.message) + '</div>';
+    })
+    .obtenerHistorialContenedor(codigo);
+}
+
+function renderHistorialContenedor(r, codigo, contenedor) {
+  if (!r || !r.contenedor) {
+    contenedor.innerHTML = '<div style="color:#9ca3af;text-align:center;padding:20px">No se encontró el contenedor <b>' + san(codigo) + '</b></div>';
+    return;
+  }
+  var c = r.contenedor;
+  var html = '<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px">' +
+    '<b>' + san(c.codigo) + '</b> — ' + san(c.tipo) + ' — ' + san(c.tipoAceite) +
+    ' — Estado: <b>' + san(c.estado) + '</b> — Actual: <b>' + c.litrosActuales + 'L</b> / ' + c.capacidad + 'L' +
+  '</div>';
+
+  if (!r.eventos.length) {
+    html += '<div style="color:#9ca3af;text-align:center;padding:16px">Sin eventos registrados para este contenedor.</div>';
+    contenedor.innerHTML = html;
+    return;
+  }
+
+  var iconos = { RECARGA: '🔄', DESPACHO: '📤', CIERRE: '✅', INGRESO_INICIAL: '🆕' };
+  html += '<div class="table-container"><table class="data-table"><thead>' +
+    '<tr><th>Fecha</th><th>Evento</th><th>Detalle</th><th>Responsable</th></tr>' +
+  '</thead><tbody>' +
+  r.eventos.map(function(e) {
+    return '<tr>' +
+      '<td style="font-size:11px">' + san(e.fecha) + '</td>' +
+      '<td>' + (iconos[e.tipo] || '•') + ' <b>' + san(e.tipo) + '</b></td>' +
+      '<td style="font-size:12px">' + san(e.detalle) + '</td>' +
+      '<td style="font-size:12px">' + san(e.resp) + '</td>' +
+    '</tr>';
+  }).join('') + '</tbody></table></div>';
+
+  contenedor.innerHTML = html;
 }
