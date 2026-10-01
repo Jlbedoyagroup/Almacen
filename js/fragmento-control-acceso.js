@@ -29,6 +29,26 @@
     document.documentElement.style.visibility = 'visible';
   }
 
+  function mostrarAvisoPago() {
+    if (document.getElementById('jlb-aviso-pago')) return;
+
+    var overlay = document.createElement('div');
+    overlay.id = 'jlb-aviso-pago';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;z-index:999999;font-family:system-ui,Arial,sans-serif;';
+    overlay.innerHTML =
+      '<div style="background:#1e293b;color:#e2e8f0;max-width:380px;width:90%;border-radius:12px;padding:1.75rem;box-shadow:0 20px 50px rgba(0,0,0,.4);text-align:center;">' +
+        '<div style="font-size:2.2rem;margin-bottom:.5rem;">⚠️</div>' +
+        '<h2 style="font-size:1.05rem;margin:0 0 .75rem;color:#fbbf24;">Pago pendiente</h2>' +
+        '<p style="font-size:.88rem;line-height:1.5;color:#cbd5e1;margin:0 0 1.25rem;">No hemos recibido el abono correspondiente al servicio de esta aplicación. Por favor, ponte al día con tu obligación de pago para continuar disfrutando del servicio sin interrupciones.</p>' +
+        '<button id="jlb-aviso-cerrar" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.65rem 1.5rem;font-weight:600;cursor:pointer;font-size:.85rem;">Entendido</button>' +
+      '</div>';
+
+    document.body.appendChild(overlay);
+    document.getElementById('jlb-aviso-cerrar').addEventListener('click', function () {
+      overlay.remove();
+    });
+  }
+
   function deny(reason) {
     try { sessionStorage.removeItem(CONFIG.TOKEN_KEY); } catch (e) {}
     redirectTo(reason === 'suspended' ? CONFIG.SUSPENDED_URL : CONFIG.LOGIN_URL);
@@ -71,6 +91,11 @@
           return;
         }
         reveal();
+        if (data.avisoPago) {
+          var intervaloMin = parseFloat(data.avisoPagoIntervaloMin) || 15;
+          setTimeout(mostrarAvisoPago, 1500);
+          setInterval(mostrarAvisoPago, intervaloMin * 60 * 1000);
+        }
       })
       .catch(function () {
         deny('network-error');
