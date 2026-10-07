@@ -49,9 +49,26 @@
     });
   }
 
+  // Sin sesión (o sesión inválida): antes de mandar al login, consulta el estado público del
+  // servicio. Si está suspendido, todos —cualquier rol, con o sin sesión— ven la pantalla de
+  // "suspendido por falta de pago" en vez de un login que no los dejaría entrar igual.
+  function irALoginOSuspendido() {
+    var url = CONFIG.IDP_BASE_URL + '?action=estadoServicio&app=' + encodeURIComponent(CONFIG.APP_ID);
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { redirectTo(d && d.active === false ? CONFIG.SUSPENDED_URL : CONFIG.LOGIN_URL); })
+      .catch(function () { redirectTo(CONFIG.LOGIN_URL); });
+  }
+
   function deny(reason) {
     try { sessionStorage.removeItem(CONFIG.TOKEN_KEY); } catch (e) {}
-    redirectTo(reason === 'suspended' ? CONFIG.SUSPENDED_URL : CONFIG.LOGIN_URL);
+    if (reason === 'suspended') {
+      redirectTo(CONFIG.SUSPENDED_URL);
+    } else if (reason === 'no-token' || reason === 'invalid') {
+      irALoginOSuspendido();
+    } else {
+      redirectTo(CONFIG.LOGIN_URL);
+    }
   }
 
   function getToken() {
