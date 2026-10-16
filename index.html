@@ -765,6 +765,37 @@
       </div>
     </div>
   </div>
+  <div id="modalEditarContenedor" class="modal-overlay">
+    <div class="modal-box">
+      <h3>✏️ Corregir datos del contenedor</h3>
+      <input type="hidden" id="ecCodigo">
+      <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin-bottom:14px">
+        <b id="ecCodigoDisplay" style="font-size:15px"></b>
+        <div id="ecResumenActual" style="font-size:12px;color:#6b7280;margin-top:2px"></div>
+        <div style="font-size:11px;color:#92400e;margin-top:6px">El código y el historial se conservan. Cada cambio queda registrado con tu usuario, la fecha y el motivo. Los litros no se cambian aquí (usa «Recargar»).</div>
+      </div>
+      <div class="row">
+        <div style="flex:1"><label>Tipo</label><select id="ecTipo" onchange="autoCapacidad_ec()"><option value="TAMBOR">TAMBOR (~200 L)</option><option value="ISOTANQUE">ISOTANQUE (~1000 L)</option></select></div>
+        <div style="flex:1"><label>Capacidad (L)</label><input type="number" id="ecCapacidad"></div>
+      </div>
+      <label>Tipo de Aceite *</label>
+      <input type="text" id="ecTipoAceite" placeholder="Ej: Dielectrico Naftenico">
+      <label>Propiedad</label>
+      <select id="ecPropiedad" onchange="toggleReferenciaEditar()">
+        <option value="JLB">JLB - Stock propio</option>
+        <option value="CLIENTE">CLIENTE - Aceite del cliente</option>
+      </select>
+      <label id="ecReferenciaLabel">Proveedor</label>
+      <input type="text" id="ecReferencia" list="datalistProyectos">
+      <label>Motivo de la corrección *</label>
+      <input type="text" id="ecMotivo" placeholder="Ej: Se registró como tambor pero es un isotanque">
+      <div id="ecUsuarioInfo" style="font-size:11px;color:#6b7280;margin-top:6px"></div>
+      <div class="row" style="margin-top:20px">
+        <button class="btn-secondary" onclick="document.getElementById('modalEditarContenedor').style.display='none'">Cancelar</button>
+        <button id="btnGuardarEdicionContenedor" class="btn-primary" style="background:#d97706;margin-top:0" onclick="guardarEdicionContenedor()">GUARDAR CORRECCIÓN</button>
+      </div>
+    </div>
+  </div>
   <div id="modalAgregarPieza" class="modal-overlay">
     <div class="modal-box">
       <h3>Agregar Pieza</h3>

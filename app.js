@@ -1385,6 +1385,9 @@ function renderStockContenedores() {
       '<td>' +
         '<button class="btn-icon" title="Recargar contenedor" onclick="abrirModalRecarga(\'' + c.codigo + '\')">🔄</button>' +
         '<button class="btn-icon" title="Ver historial" onclick="abrirHistorialDesdeStock(\'' + c.codigo + '\')">📋</button>' +
+        (currentRole === 'Admin'
+          ? '<button class="btn-icon" title="Corregir datos (tipo, capacidad...)" onclick="abrirModalEditarContenedor(\'' + c.codigo + '\')">✏️</button>'
+          : '') +
       '</td>' +
     '</tr>';
   }).join('');
@@ -2792,6 +2795,99 @@ function guardarRecargaContenedor() {
     .registrarRecargaContenedor(payload);
 }
 
+// ─── Modal: Corregir datos de un contenedor (solo Admin) ─────────────
+
+var _editContenedorGuardando = false;
+
+function abrirModalEditarContenedor(codigo) {
+  var c = (DATA.contenedores || []).find(function(x) { return x.codigo === codigo; });
+  if (!c) { showToast('❌', 'Error', 'Contenedor no encontrado en memoria local.', '#dc2626'); return; }
+  _editContenedorGuardando = false;
+
+  document.getElementById('ecCodigo').value = c.codigo;
+  document.getElementById('ecCodigoDisplay').textContent = c.codigo;
+  document.getElementById('ecResumenActual').textContent =
+    c.tipo + ' · ' + c.capacidad + ' L · ' + c.litrosActuales + ' L actuales · ' + c.estado;
+  document.getElementById('ecTipo').value       = c.tipo === 'ISOTANQUE' ? 'ISOTANQUE' : 'TAMBOR';
+  document.getElementById('ecCapacidad').value  = c.capacidad;
+  document.getElementById('ecTipoAceite').value = c.tipoAceite || '';
+  document.getElementById('ecPropiedad').value  = c.propiedad === 'CLIENTE' ? 'CLIENTE' : 'JLB';
+  document.getElementById('ecReferencia').value = c.propiedad === 'CLIENTE' ? (c.clienteRef || '') : (c.proveedor || '');
+  document.getElementById('ecMotivo').value     = '';
+  document.getElementById('ecUsuarioInfo').textContent = 'Quedará registrado a nombre de: ' + currentUser;
+  toggleReferenciaEditar();
+
+  var btn = document.getElementById('btnGuardarEdicionContenedor');
+  btn.disabled = false; btn.textContent = 'GUARDAR CORRECCIÓN';
+  document.getElementById('modalEditarContenedor').style.display = 'flex';
+}
+
+function autoCapacidad_ec() {
+  var tipo = document.getElementById('ecTipo').value;
+  document.getElementById('ecCapacidad').value = tipo === 'ISOTANQUE' ? '1000' : '200';
+}
+
+function toggleReferenciaEditar() {
+  var prop = document.getElementById('ecPropiedad').value;
+  document.getElementById('ecReferenciaLabel').textContent =
+    prop === 'CLIENTE' ? 'Cliente / Referencia del Trafo' : 'Proveedor';
+}
+
+function guardarEdicionContenedor() {
+  if (_editContenedorGuardando) return;
+
+  var motivo = (document.getElementById('ecMotivo').value || '').trim();
+  var tipoAceite = (document.getElementById('ecTipoAceite').value || '').trim();
+  var capacidad = parseFloat(document.getElementById('ecCapacidad').value);
+
+  if (!motivo) {
+    showToast('⚠️', 'Campo requerido', 'Indica el motivo de la corrección.', '#dc2626');
+    return;
+  }
+  if (!tipoAceite) {
+    showToast('⚠️', 'Campo requerido', 'El tipo de aceite es obligatorio.', '#dc2626');
+    return;
+  }
+  if (!(capacidad > 0)) {
+    showToast('⚠️', 'Capacidad inválida', 'La capacidad debe ser mayor a cero.', '#dc2626');
+    return;
+  }
+
+  _editContenedorGuardando = true;
+  var btn = document.getElementById('btnGuardarEdicionContenedor');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+
+  var payload = {
+    codigo    : document.getElementById('ecCodigo').value,
+    usuario   : currentUser,
+    motivo    : motivo,
+    tipo      : document.getElementById('ecTipo').value,
+    capacidad : capacidad,
+    tipoAceite: tipoAceite,
+    propiedad : document.getElementById('ecPropiedad').value,
+    referencia: (document.getElementById('ecReferencia').value || '').trim()
+  };
+
+  google.script.run
+    .withSuccessHandler(function(r) {
+      _editContenedorGuardando = false;
+      btn.disabled = false; btn.textContent = 'GUARDAR CORRECCIÓN';
+      if (r.ok) {
+        showToast('✅', 'Contenedor corregido', r.msg, '#16a34a');
+        document.getElementById('modalEditarContenedor').style.display = 'none';
+        sincronizarGlobalSilent();
+      } else {
+        showToast('❌', 'No se pudo corregir', r.error, '#dc2626');
+      }
+    })
+    .withFailureHandler(function(e) {
+      _editContenedorGuardando = false;
+      btn.disabled = false; btn.textContent = 'GUARDAR CORRECCIÓN';
+      showToast('❌', 'Error de conexión', e.message, '#dc2626');
+    })
+    .editarContenedor(payload);
+}
+
 function abrirHistorialDesdeStock(codigo) {
   goRegen('regen-legacy');
   setTimeout(function() {
@@ -2835,7 +2931,7 @@ function renderHistorialContenedor(r, codigo, contenedor) {
     return;
   }
 
-  var iconos = { RECARGA: '🔄', DESPACHO: '📤', CIERRE: '✅', INGRESO_INICIAL: '🆕' };
+  var iconos = { RECARGA: '🔄', DESPACHO: '📤', CIERRE: '✅', INGRESO_INICIAL: '🆕', CORRECCION: '✏️' };
   html += '<div class="table-container"><table class="data-table"><thead>' +
     '<tr><th>Fecha</th><th>Evento</th><th>Detalle</th><th>Responsable</th></tr>' +
   '</thead><tbody>' +
