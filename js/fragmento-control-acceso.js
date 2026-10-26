@@ -29,18 +29,42 @@
     document.documentElement.style.visibility = 'visible';
   }
 
+  var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  var WHATSAPP_URL = 'https://wa.me/573137713430?text=' + encodeURIComponent('Hola, escribo por el pago del servicio de JL Bedoya Group');
+
+  // El pago vence el día 1 de cada mes. Que el aviso se muestre o no lo decide el flag AVISO_PAGO
+  // (manual, desde el panel admin); el TEXTO cambia solo según el día del mes:
+  //   26–31 -> recordatorio (se acerca la fecha), 1 -> vence hoy, 2–25 -> pago vencido.
+  function textoAvisoPago(hoy) {
+    var dia = hoy.getDate();
+    if (dia >= 26) {
+      return { icono: '⏰', color: '#fbbf24', titulo: 'Recordatorio de pago',
+        cuerpo: 'Se acerca la fecha de pago del servicio de esta aplicación: vence el 1 de ' + MESES[(hoy.getMonth() + 1) % 12] + '. Realiza tu pago a tiempo para evitar la suspensión del servicio.' };
+    }
+    if (dia === 1) {
+      return { icono: '⏰', color: '#fbbf24', titulo: 'Hoy vence tu pago',
+        cuerpo: 'Hoy es la fecha de pago del servicio de esta aplicación. Realiza tu pago hoy para evitar la suspensión del servicio.' };
+    }
+    return { icono: '⚠️', color: '#f87171', titulo: 'Pago vencido',
+      cuerpo: 'La fecha de pago del servicio de esta aplicación ya venció y no hemos recibido tu abono. Regulariza tu pago para evitar la suspensión del servicio.' };
+  }
+
   function mostrarAvisoPago() {
     if (document.getElementById('jlb-aviso-pago')) return;
 
+    var t = textoAvisoPago(new Date());
     var overlay = document.createElement('div');
     overlay.id = 'jlb-aviso-pago';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;z-index:999999;font-family:system-ui,Arial,sans-serif;';
     overlay.innerHTML =
       '<div style="background:#1e293b;color:#e2e8f0;max-width:380px;width:90%;border-radius:12px;padding:1.75rem;box-shadow:0 20px 50px rgba(0,0,0,.4);text-align:center;">' +
-        '<div style="font-size:2.2rem;margin-bottom:.5rem;">⚠️</div>' +
-        '<h2 style="font-size:1.05rem;margin:0 0 .75rem;color:#fbbf24;">Pago pendiente</h2>' +
-        '<p style="font-size:.88rem;line-height:1.5;color:#cbd5e1;margin:0 0 1.25rem;">No hemos recibido el abono correspondiente al servicio de esta aplicación. Por favor, ponte al día con tu obligación de pago para continuar disfrutando del servicio sin interrupciones.</p>' +
-        '<button id="jlb-aviso-cerrar" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.65rem 1.5rem;font-weight:600;cursor:pointer;font-size:.85rem;">Entendido</button>' +
+        '<div style="font-size:2.2rem;margin-bottom:.5rem;">' + t.icono + '</div>' +
+        '<h2 style="font-size:1.05rem;margin:0 0 .75rem;color:' + t.color + ';">' + t.titulo + '</h2>' +
+        '<p style="font-size:.88rem;line-height:1.5;color:#cbd5e1;margin:0 0 1.25rem;">' + t.cuerpo + '</p>' +
+        '<div style="display:flex;gap:.6rem;justify-content:center;flex-wrap:wrap;">' +
+          '<a href="' + WHATSAPP_URL + '" target="_blank" rel="noopener" style="background:#22c55e;color:#0f172a;text-decoration:none;border-radius:8px;padding:.65rem 1.1rem;font-weight:700;font-size:.85rem;">Escribir por WhatsApp</a>' +
+          '<button id="jlb-aviso-cerrar" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.65rem 1.5rem;font-weight:600;cursor:pointer;font-size:.85rem;">Entendido</button>' +
+        '</div>' +
       '</div>';
 
     document.body.appendChild(overlay);
