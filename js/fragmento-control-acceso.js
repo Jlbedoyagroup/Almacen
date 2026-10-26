@@ -32,27 +32,21 @@
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   var WHATSAPP_URL = 'https://wa.me/573137713430?text=' + encodeURIComponent('Hola, escribo por el pago del servicio de JL Bedoya Group');
 
-  // El pago vence el día 1 de cada mes. Que el aviso se muestre o no lo decide el flag AVISO_PAGO
-  // (manual, desde el panel admin); el TEXTO cambia solo según el día del mes:
-  //   26–31 -> recordatorio (se acerca la fecha), 1 -> vence hoy, 2–25 -> pago vencido.
+  // COBRO AUTOMÁTICO: el pago vence el día 1 de cada mes. Mientras el flag AVISO_PAGO esté encendido
+  // (manual, desde el panel admin) este aviso sale SOLO del día 25 al fin de mes (recordatorio, 5 días
+  // antes del corte); el día 1 el servidor suspende solo las apps (ver aplicarCobroAutomatico en el IdP).
+  // Del 1 al 24 no se muestra nada: si ya pagaron y Gerson reactivó las apps, no se les molesta.
   function textoAvisoPago(hoy) {
-    var dia = hoy.getDate();
-    if (dia >= 26) {
-      return { icono: '⏰', color: '#fbbf24', titulo: 'Recordatorio de pago',
-        cuerpo: 'Se acerca la fecha de pago del servicio de esta aplicación: vence el 1 de ' + MESES[(hoy.getMonth() + 1) % 12] + '. Realiza tu pago a tiempo para evitar la suspensión del servicio.' };
-    }
-    if (dia === 1) {
-      return { icono: '⏰', color: '#fbbf24', titulo: 'Hoy vence tu pago',
-        cuerpo: 'Hoy es la fecha de pago del servicio de esta aplicación. Realiza tu pago hoy para evitar la suspensión del servicio.' };
-    }
-    return { icono: '⚠️', color: '#f87171', titulo: 'Pago vencido',
-      cuerpo: 'La fecha de pago del servicio de esta aplicación ya venció y no hemos recibido tu abono. Regulariza tu pago para evitar la suspensión del servicio.' };
+    if (hoy.getDate() < 25) return null;
+    return { icono: '⏰', color: '#fbbf24', titulo: 'Recordatorio de pago',
+      cuerpo: 'Se acerca la fecha de pago del servicio de esta aplicación: vence el 1 de ' + MESES[(hoy.getMonth() + 1) % 12] + '. Realiza tu pago a tiempo para evitar la suspensión del servicio.' };
   }
 
   function mostrarAvisoPago() {
     if (document.getElementById('jlb-aviso-pago')) return;
 
     var t = textoAvisoPago(new Date());
+    if (!t) return;
     var overlay = document.createElement('div');
     overlay.id = 'jlb-aviso-pago';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;z-index:999999;font-family:system-ui,Arial,sans-serif;';
